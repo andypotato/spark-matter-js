@@ -14,15 +14,11 @@ Matter.Detector = require('../collision/Detector');
 Matter.Engine = require('../core/Engine');
 Matter.Events = require('../core/Events');
 Matter.Grid = require('../collision/Grid');
-Matter.Mouse = require('../core/Mouse');
-Matter.MouseConstraint = require('../constraint/MouseConstraint');
 Matter.Pair = require('../collision/Pair');
 Matter.Pairs = require('../collision/Pairs');
 Matter.Plugin = require('../core/Plugin');
 Matter.Query = require('../collision/Query');
-Matter.Render = require('../render/Render');
 Matter.Resolver = require('../collision/Resolver');
-Matter.Runner = require('../core/Runner');
 Matter.SAT = require('../collision/SAT');
 Matter.Sleeping = require('../core/Sleeping');
 Matter.Svg = require('../geometry/Svg');
@@ -31,5 +27,4 @@ Matter.Vertices = require('../geometry/Vertices');
 Matter.World = require('../body/World');
 
 // temporary back compatibility
-Matter.Engine.run = Matter.Runner.run;
 Matter.Common.deprecated(Matter.Engine, 'run', 'Engine.run ➤ use Matter.Runner.run(engine) instead');

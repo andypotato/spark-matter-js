@@ -57,30 +57,4 @@ var Common = require('./Common');
         Plugin.use(Matter, Array.prototype.slice.call(arguments));
     };
 
-    /**
-     * Chains a function to excute before the original function on the given `path` relative to `Matter`.
-     * See also docs for `Common.chain`.
-     * @method before
-     * @param {string} path The path relative to `Matter`
-     * @param {function} func The function to chain before the original
-     * @return {function} The chained function that replaced the original
-     */
-    Matter.before = function(path, func) {
-        path = path.replace(/^Matter./, '');
-        return Common.chainPathBefore(Matter, path, func);
-    };
-
-    /**
-     * Chains a function to excute after the original function on the given `path` relative to `Matter`.
-     * See also docs for `Common.chain`.
-     * @method after
-     * @param {string} path The path relative to `Matter`
-     * @param {function} func The function to chain after the original
-     * @return {function} The chained function that replaced the original
-     */
-    Matter.after = function(path, func) {
-        path = path.replace(/^Matter./, '');
-        return Common.chainPathAfter(Matter, path, func);
-    };
-
 })();

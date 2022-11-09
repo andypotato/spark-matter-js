@@ -1,6 +1,6 @@
 /*!
- * matter-js 0.18.0 by @liabru
- * http://brm.io/matter-js/
+ * spark-matter-js 0.18.0 by @liabru
+ * https://github.com/andypotato/spark-matter-js
  * License MIT
  * 
  * The MIT License (MIT)
@@ -118,7 +118,7 @@ return /******/ (function(modules) { // webpackBootstrap
 /******/
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 21);
+/******/ 	return __webpack_require__(__webpack_require__.s = 18);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -617,88 +617,6 @@ module.exports = Common;
     };
 
     /**
-     * Takes _n_ functions as arguments and returns a new function that calls them in order.
-     * The arguments applied when calling the new function will also be applied to every function passed.
-     * The value of `this` refers to the last value returned in the chain that was not `undefined`.
-     * Therefore if a passed function does not return a value, the previously returned value is maintained.
-     * After all passed functions have been called the new function returns the last returned value (if any).
-     * If any of the passed functions are a chain, then the chain will be flattened.
-     * @method chain
-     * @param ...funcs {function} The functions to chain.
-     * @return {function} A new function that calls the passed functions in order.
-     */
-    Common.chain = function() {
-        var funcs = [];
-
-        for (var i = 0; i < arguments.length; i += 1) {
-            var func = arguments[i];
-
-            if (func._chained) {
-                // flatten already chained functions
-                funcs.push.apply(funcs, func._chained);
-            } else {
-                funcs.push(func);
-            }
-        }
-
-        var chain = function() {
-            // https://github.com/GoogleChrome/devtools-docs/issues/53#issuecomment-51941358
-            var lastResult,
-                args = new Array(arguments.length);
-
-            for (var i = 0, l = arguments.length; i < l; i++) {
-                args[i] = arguments[i];
-            }
-
-            for (i = 0; i < funcs.length; i += 1) {
-                var result = funcs[i].apply(lastResult, args);
-
-                if (typeof result !== 'undefined') {
-                    lastResult = result;
-                }
-            }
-
-            return lastResult;
-        };
-
-        chain._chained = funcs;
-
-        return chain;
-    };
-
-    /**
-     * Chains a function to excute before the original function on the given `path` relative to `base`.
-     * See also docs for `Common.chain`.
-     * @method chainPathBefore
-     * @param {} base The base object
-     * @param {string} path The path relative to `base`
-     * @param {function} func The function to chain before the original
-     * @return {function} The chained function that replaced the original
-     */
-    Common.chainPathBefore = function(base, path, func) {
-        return Common.set(base, path, Common.chain(
-            func,
-            Common.get(base, path)
-        ));
-    };
-
-    /**
-     * Chains a function to excute after the original function on the given `path` relative to `base`.
-     * See also docs for `Common.chain`.
-     * @method chainPathAfter
-     * @param {} base The base object
-     * @param {string} path The path relative to `base`
-     * @param {function} func The function to chain after the original
-     * @return {function} The chained function that replaced the original
-     */
-    Common.chainPathAfter = function(base, path, func) {
-        return Common.set(base, path, Common.chain(
-            Common.get(base, path),
-            func
-        ));
-    };
-
-    /**
      * Provide the [poly-decomp](https://github.com/schteppe/poly-decomp.js) library module to enable
      * concave vertex decomposition support when using `Bodies.fromVertices` e.g. `Common.setDecomp(require('poly-decomp'))`.
      * @method setDecomp
@@ -718,19 +636,8 @@ module.exports = Common;
         // get user provided decomp if set
         var decomp = Common._decomp;
 
-        try {
-            // otherwise from window global
-            if (!decomp && typeof window !== 'undefined') {
-                decomp = window.decomp;
-            }
-    
-            // otherwise from node global
-            if (!decomp && typeof global !== 'undefined') {
-                decomp = global.decomp;
-            }
-        } catch (e) {
-            // decomp not available
-            decomp = null;
+        if(!decomp) {
+            return null;
         }
 
         return decomp;
@@ -1580,852 +1487,6 @@ var Common = __webpack_require__(0);
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
-* The `Matter.Events` module contains methods to fire and listen to events on other objects.
-*
-* See the included usage [examples](https://github.com/liabru/matter-js/tree/master/examples).
-*
-* @class Events
-*/
-
-var Events = {};
-
-module.exports = Events;
-
-var Common = __webpack_require__(0);
-
-(function() {
-
-    /**
-     * Subscribes a callback function to the given object's `eventName`.
-     * @method on
-     * @param {} object
-     * @param {string} eventNames
-     * @param {function} callback
-     */
-    Events.on = function(object, eventNames, callback) {
-        var names = eventNames.split(' '),
-            name;
-
-        for (var i = 0; i < names.length; i++) {
-            name = names[i];
-            object.events = object.events || {};
-            object.events[name] = object.events[name] || [];
-            object.events[name].push(callback);
-        }
-
-        return callback;
-    };
-
-    /**
-     * Removes the given event callback. If no callback, clears all callbacks in `eventNames`. If no `eventNames`, clears all events.
-     * @method off
-     * @param {} object
-     * @param {string} eventNames
-     * @param {function} callback
-     */
-    Events.off = function(object, eventNames, callback) {
-        if (!eventNames) {
-            object.events = {};
-            return;
-        }
-
-        // handle Events.off(object, callback)
-        if (typeof eventNames === 'function') {
-            callback = eventNames;
-            eventNames = Common.keys(object.events).join(' ');
-        }
-
-        var names = eventNames.split(' ');
-
-        for (var i = 0; i < names.length; i++) {
-            var callbacks = object.events[names[i]],
-                newCallbacks = [];
-
-            if (callback && callbacks) {
-                for (var j = 0; j < callbacks.length; j++) {
-                    if (callbacks[j] !== callback)
-                        newCallbacks.push(callbacks[j]);
-                }
-            }
-
-            object.events[names[i]] = newCallbacks;
-        }
-    };
-
-    /**
-     * Fires all the callbacks subscribed to the given object's `eventName`, in the order they subscribed, if any.
-     * @method trigger
-     * @param {} object
-     * @param {string} eventNames
-     * @param {} event
-     */
-    Events.trigger = function(object, eventNames, event) {
-        var names,
-            name,
-            callbacks,
-            eventClone;
-
-        var events = object.events;
-        
-        if (events && Common.keys(events).length > 0) {
-            if (!event)
-                event = {};
-
-            names = eventNames.split(' ');
-
-            for (var i = 0; i < names.length; i++) {
-                name = names[i];
-                callbacks = events[name];
-
-                if (callbacks) {
-                    eventClone = Common.clone(event, false);
-                    eventClone.name = name;
-                    eventClone.source = object;
-
-                    for (var j = 0; j < callbacks.length; j++) {
-                        callbacks[j].apply(object, [eventClone]);
-                    }
-                }
-            }
-        }
-    };
-
-})();
-
-
-/***/ }),
-/* 5 */
-/***/ (function(module, exports, __webpack_require__) {
-
-/**
-* A composite is a collection of `Matter.Body`, `Matter.Constraint` and other `Matter.Composite` objects.
-*
-* They are a container that can represent complex objects made of multiple parts, even if they are not physically connected.
-* A composite could contain anything from a single body all the way up to a whole world.
-* 
-* When making any changes to composites, use the included functions rather than changing their properties directly.
-*
-* See the included usage [examples](https://github.com/liabru/matter-js/tree/master/examples).
-*
-* @class Composite
-*/
-
-var Composite = {};
-
-module.exports = Composite;
-
-var Events = __webpack_require__(4);
-var Common = __webpack_require__(0);
-var Bounds = __webpack_require__(1);
-var Body = __webpack_require__(6);
-
-(function() {
-
-    /**
-     * Creates a new composite. The options parameter is an object that specifies any properties you wish to override the defaults.
-     * See the properites section below for detailed information on what you can pass via the `options` object.
-     * @method create
-     * @param {} [options]
-     * @return {composite} A new composite
-     */
-    Composite.create = function(options) {
-        return Common.extend({ 
-            id: Common.nextId(),
-            type: 'composite',
-            parent: null,
-            isModified: false,
-            bodies: [], 
-            constraints: [], 
-            composites: [],
-            label: 'Composite',
-            plugin: {},
-            cache: {
-                allBodies: null,
-                allConstraints: null,
-                allComposites: null
-            }
-        }, options);
-    };
-
-    /**
-     * Sets the composite's `isModified` flag. 
-     * If `updateParents` is true, all parents will be set (default: false).
-     * If `updateChildren` is true, all children will be set (default: false).
-     * @private
-     * @method setModified
-     * @param {composite} composite
-     * @param {boolean} isModified
-     * @param {boolean} [updateParents=false]
-     * @param {boolean} [updateChildren=false]
-     */
-    Composite.setModified = function(composite, isModified, updateParents, updateChildren) {
-        composite.isModified = isModified;
-
-        if (isModified && composite.cache) {
-            composite.cache.allBodies = null;
-            composite.cache.allConstraints = null;
-            composite.cache.allComposites = null;
-        }
-
-        if (updateParents && composite.parent) {
-            Composite.setModified(composite.parent, isModified, updateParents, updateChildren);
-        }
-
-        if (updateChildren) {
-            for (var i = 0; i < composite.composites.length; i++) {
-                var childComposite = composite.composites[i];
-                Composite.setModified(childComposite, isModified, updateParents, updateChildren);
-            }
-        }
-    };
-
-    /**
-     * Generic single or multi-add function. Adds a single or an array of body(s), constraint(s) or composite(s) to the given composite.
-     * Triggers `beforeAdd` and `afterAdd` events on the `composite`.
-     * @method add
-     * @param {composite} composite
-     * @param {object|array} object A single or an array of body(s), constraint(s) or composite(s)
-     * @return {composite} The original composite with the objects added
-     */
-    Composite.add = function(composite, object) {
-        var objects = [].concat(object);
-
-        Events.trigger(composite, 'beforeAdd', { object: object });
-
-        for (var i = 0; i < objects.length; i++) {
-            var obj = objects[i];
-
-            switch (obj.type) {
-
-            case 'body':
-                // skip adding compound parts
-                if (obj.parent !== obj) {
-                    Common.warn('Composite.add: skipped adding a compound body part (you must add its parent instead)');
-                    break;
-                }
-
-                Composite.addBody(composite, obj);
-                break;
-            case 'constraint':
-                Composite.addConstraint(composite, obj);
-                break;
-            case 'composite':
-                Composite.addComposite(composite, obj);
-                break;
-            case 'mouseConstraint':
-                Composite.addConstraint(composite, obj.constraint);
-                break;
-
-            }
-        }
-
-        Events.trigger(composite, 'afterAdd', { object: object });
-
-        return composite;
-    };
-
-    /**
-     * Generic remove function. Removes one or many body(s), constraint(s) or a composite(s) to the given composite.
-     * Optionally searching its children recursively.
-     * Triggers `beforeRemove` and `afterRemove` events on the `composite`.
-     * @method remove
-     * @param {composite} composite
-     * @param {object|array} object
-     * @param {boolean} [deep=false]
-     * @return {composite} The original composite with the objects removed
-     */
-    Composite.remove = function(composite, object, deep) {
-        var objects = [].concat(object);
-
-        Events.trigger(composite, 'beforeRemove', { object: object });
-
-        for (var i = 0; i < objects.length; i++) {
-            var obj = objects[i];
-
-            switch (obj.type) {
-
-            case 'body':
-                Composite.removeBody(composite, obj, deep);
-                break;
-            case 'constraint':
-                Composite.removeConstraint(composite, obj, deep);
-                break;
-            case 'composite':
-                Composite.removeComposite(composite, obj, deep);
-                break;
-            case 'mouseConstraint':
-                Composite.removeConstraint(composite, obj.constraint);
-                break;
-
-            }
-        }
-
-        Events.trigger(composite, 'afterRemove', { object: object });
-
-        return composite;
-    };
-
-    /**
-     * Adds a composite to the given composite.
-     * @private
-     * @method addComposite
-     * @param {composite} compositeA
-     * @param {composite} compositeB
-     * @return {composite} The original compositeA with the objects from compositeB added
-     */
-    Composite.addComposite = function(compositeA, compositeB) {
-        compositeA.composites.push(compositeB);
-        compositeB.parent = compositeA;
-        Composite.setModified(compositeA, true, true, false);
-        return compositeA;
-    };
-
-    /**
-     * Removes a composite from the given composite, and optionally searching its children recursively.
-     * @private
-     * @method removeComposite
-     * @param {composite} compositeA
-     * @param {composite} compositeB
-     * @param {boolean} [deep=false]
-     * @return {composite} The original compositeA with the composite removed
-     */
-    Composite.removeComposite = function(compositeA, compositeB, deep) {
-        var position = Common.indexOf(compositeA.composites, compositeB);
-        if (position !== -1) {
-            Composite.removeCompositeAt(compositeA, position);
-        }
-
-        if (deep) {
-            for (var i = 0; i < compositeA.composites.length; i++){
-                Composite.removeComposite(compositeA.composites[i], compositeB, true);
-            }
-        }
-
-        return compositeA;
-    };
-
-    /**
-     * Removes a composite from the given composite.
-     * @private
-     * @method removeCompositeAt
-     * @param {composite} composite
-     * @param {number} position
-     * @return {composite} The original composite with the composite removed
-     */
-    Composite.removeCompositeAt = function(composite, position) {
-        composite.composites.splice(position, 1);
-        Composite.setModified(composite, true, true, false);
-        return composite;
-    };
-
-    /**
-     * Adds a body to the given composite.
-     * @private
-     * @method addBody
-     * @param {composite} composite
-     * @param {body} body
-     * @return {composite} The original composite with the body added
-     */
-    Composite.addBody = function(composite, body) {
-        composite.bodies.push(body);
-        Composite.setModified(composite, true, true, false);
-        return composite;
-    };
-
-    /**
-     * Removes a body from the given composite, and optionally searching its children recursively.
-     * @private
-     * @method removeBody
-     * @param {composite} composite
-     * @param {body} body
-     * @param {boolean} [deep=false]
-     * @return {composite} The original composite with the body removed
-     */
-    Composite.removeBody = function(composite, body, deep) {
-        var position = Common.indexOf(composite.bodies, body);
-        if (position !== -1) {
-            Composite.removeBodyAt(composite, position);
-        }
-
-        if (deep) {
-            for (var i = 0; i < composite.composites.length; i++){
-                Composite.removeBody(composite.composites[i], body, true);
-            }
-        }
-
-        return composite;
-    };
-
-    /**
-     * Removes a body from the given composite.
-     * @private
-     * @method removeBodyAt
-     * @param {composite} composite
-     * @param {number} position
-     * @return {composite} The original composite with the body removed
-     */
-    Composite.removeBodyAt = function(composite, position) {
-        composite.bodies.splice(position, 1);
-        Composite.setModified(composite, true, true, false);
-        return composite;
-    };
-
-    /**
-     * Adds a constraint to the given composite.
-     * @private
-     * @method addConstraint
-     * @param {composite} composite
-     * @param {constraint} constraint
-     * @return {composite} The original composite with the constraint added
-     */
-    Composite.addConstraint = function(composite, constraint) {
-        composite.constraints.push(constraint);
-        Composite.setModified(composite, true, true, false);
-        return composite;
-    };
-
-    /**
-     * Removes a constraint from the given composite, and optionally searching its children recursively.
-     * @private
-     * @method removeConstraint
-     * @param {composite} composite
-     * @param {constraint} constraint
-     * @param {boolean} [deep=false]
-     * @return {composite} The original composite with the constraint removed
-     */
-    Composite.removeConstraint = function(composite, constraint, deep) {
-        var position = Common.indexOf(composite.constraints, constraint);
-        if (position !== -1) {
-            Composite.removeConstraintAt(composite, position);
-        }
-
-        if (deep) {
-            for (var i = 0; i < composite.composites.length; i++){
-                Composite.removeConstraint(composite.composites[i], constraint, true);
-            }
-        }
-
-        return composite;
-    };
-
-    /**
-     * Removes a body from the given composite.
-     * @private
-     * @method removeConstraintAt
-     * @param {composite} composite
-     * @param {number} position
-     * @return {composite} The original composite with the constraint removed
-     */
-    Composite.removeConstraintAt = function(composite, position) {
-        composite.constraints.splice(position, 1);
-        Composite.setModified(composite, true, true, false);
-        return composite;
-    };
-
-    /**
-     * Removes all bodies, constraints and composites from the given composite.
-     * Optionally clearing its children recursively.
-     * @method clear
-     * @param {composite} composite
-     * @param {boolean} keepStatic
-     * @param {boolean} [deep=false]
-     */
-    Composite.clear = function(composite, keepStatic, deep) {
-        if (deep) {
-            for (var i = 0; i < composite.composites.length; i++){
-                Composite.clear(composite.composites[i], keepStatic, true);
-            }
-        }
-        
-        if (keepStatic) {
-            composite.bodies = composite.bodies.filter(function(body) { return body.isStatic; });
-        } else {
-            composite.bodies.length = 0;
-        }
-
-        composite.constraints.length = 0;
-        composite.composites.length = 0;
-
-        Composite.setModified(composite, true, true, false);
-
-        return composite;
-    };
-
-    /**
-     * Returns all bodies in the given composite, including all bodies in its children, recursively.
-     * @method allBodies
-     * @param {composite} composite
-     * @return {body[]} All the bodies
-     */
-    Composite.allBodies = function(composite) {
-        if (composite.cache && composite.cache.allBodies) {
-            return composite.cache.allBodies;
-        }
-
-        var bodies = [].concat(composite.bodies);
-
-        for (var i = 0; i < composite.composites.length; i++)
-            bodies = bodies.concat(Composite.allBodies(composite.composites[i]));
-
-        if (composite.cache) {
-            composite.cache.allBodies = bodies;
-        }
-
-        return bodies;
-    };
-
-    /**
-     * Returns all constraints in the given composite, including all constraints in its children, recursively.
-     * @method allConstraints
-     * @param {composite} composite
-     * @return {constraint[]} All the constraints
-     */
-    Composite.allConstraints = function(composite) {
-        if (composite.cache && composite.cache.allConstraints) {
-            return composite.cache.allConstraints;
-        }
-
-        var constraints = [].concat(composite.constraints);
-
-        for (var i = 0; i < composite.composites.length; i++)
-            constraints = constraints.concat(Composite.allConstraints(composite.composites[i]));
-
-        if (composite.cache) {
-            composite.cache.allConstraints = constraints;
-        }
-
-        return constraints;
-    };
-
-    /**
-     * Returns all composites in the given composite, including all composites in its children, recursively.
-     * @method allComposites
-     * @param {composite} composite
-     * @return {composite[]} All the composites
-     */
-    Composite.allComposites = function(composite) {
-        if (composite.cache && composite.cache.allComposites) {
-            return composite.cache.allComposites;
-        }
-
-        var composites = [].concat(composite.composites);
-
-        for (var i = 0; i < composite.composites.length; i++)
-            composites = composites.concat(Composite.allComposites(composite.composites[i]));
-
-        if (composite.cache) {
-            composite.cache.allComposites = composites;
-        }
-
-        return composites;
-    };
-
-    /**
-     * Searches the composite recursively for an object matching the type and id supplied, null if not found.
-     * @method get
-     * @param {composite} composite
-     * @param {number} id
-     * @param {string} type
-     * @return {object} The requested object, if found
-     */
-    Composite.get = function(composite, id, type) {
-        var objects,
-            object;
-
-        switch (type) {
-        case 'body':
-            objects = Composite.allBodies(composite);
-            break;
-        case 'constraint':
-            objects = Composite.allConstraints(composite);
-            break;
-        case 'composite':
-            objects = Composite.allComposites(composite).concat(composite);
-            break;
-        }
-
-        if (!objects)
-            return null;
-
-        object = objects.filter(function(object) { 
-            return object.id.toString() === id.toString(); 
-        });
-
-        return object.length === 0 ? null : object[0];
-    };
-
-    /**
-     * Moves the given object(s) from compositeA to compositeB (equal to a remove followed by an add).
-     * @method move
-     * @param {compositeA} compositeA
-     * @param {object[]} objects
-     * @param {compositeB} compositeB
-     * @return {composite} Returns compositeA
-     */
-    Composite.move = function(compositeA, objects, compositeB) {
-        Composite.remove(compositeA, objects);
-        Composite.add(compositeB, objects);
-        return compositeA;
-    };
-
-    /**
-     * Assigns new ids for all objects in the composite, recursively.
-     * @method rebase
-     * @param {composite} composite
-     * @return {composite} Returns composite
-     */
-    Composite.rebase = function(composite) {
-        var objects = Composite.allBodies(composite)
-            .concat(Composite.allConstraints(composite))
-            .concat(Composite.allComposites(composite));
-
-        for (var i = 0; i < objects.length; i++) {
-            objects[i].id = Common.nextId();
-        }
-
-        return composite;
-    };
-
-    /**
-     * Translates all children in the composite by a given vector relative to their current positions, 
-     * without imparting any velocity.
-     * @method translate
-     * @param {composite} composite
-     * @param {vector} translation
-     * @param {bool} [recursive=true]
-     */
-    Composite.translate = function(composite, translation, recursive) {
-        var bodies = recursive ? Composite.allBodies(composite) : composite.bodies;
-
-        for (var i = 0; i < bodies.length; i++) {
-            Body.translate(bodies[i], translation);
-        }
-
-        return composite;
-    };
-
-    /**
-     * Rotates all children in the composite by a given angle about the given point, without imparting any angular velocity.
-     * @method rotate
-     * @param {composite} composite
-     * @param {number} rotation
-     * @param {vector} point
-     * @param {bool} [recursive=true]
-     */
-    Composite.rotate = function(composite, rotation, point, recursive) {
-        var cos = Math.cos(rotation),
-            sin = Math.sin(rotation),
-            bodies = recursive ? Composite.allBodies(composite) : composite.bodies;
-
-        for (var i = 0; i < bodies.length; i++) {
-            var body = bodies[i],
-                dx = body.position.x - point.x,
-                dy = body.position.y - point.y;
-                
-            Body.setPosition(body, {
-                x: point.x + (dx * cos - dy * sin),
-                y: point.y + (dx * sin + dy * cos)
-            });
-
-            Body.rotate(body, rotation);
-        }
-
-        return composite;
-    };
-
-    /**
-     * Scales all children in the composite, including updating physical properties (mass, area, axes, inertia), from a world-space point.
-     * @method scale
-     * @param {composite} composite
-     * @param {number} scaleX
-     * @param {number} scaleY
-     * @param {vector} point
-     * @param {bool} [recursive=true]
-     */
-    Composite.scale = function(composite, scaleX, scaleY, point, recursive) {
-        var bodies = recursive ? Composite.allBodies(composite) : composite.bodies;
-
-        for (var i = 0; i < bodies.length; i++) {
-            var body = bodies[i],
-                dx = body.position.x - point.x,
-                dy = body.position.y - point.y;
-                
-            Body.setPosition(body, {
-                x: point.x + dx * scaleX,
-                y: point.y + dy * scaleY
-            });
-
-            Body.scale(body, scaleX, scaleY);
-        }
-
-        return composite;
-    };
-
-    /**
-     * Returns the union of the bounds of all of the composite's bodies.
-     * @method bounds
-     * @param {composite} composite The composite.
-     * @returns {bounds} The composite bounds.
-     */
-    Composite.bounds = function(composite) {
-        var bodies = Composite.allBodies(composite),
-            vertices = [];
-
-        for (var i = 0; i < bodies.length; i += 1) {
-            var body = bodies[i];
-            vertices.push(body.bounds.min, body.bounds.max);
-        }
-
-        return Bounds.create(vertices);
-    };
-
-    /*
-    *
-    *  Events Documentation
-    *
-    */
-
-    /**
-    * Fired when a call to `Composite.add` is made, before objects have been added.
-    *
-    * @event beforeAdd
-    * @param {} event An event object
-    * @param {} event.object The object(s) to be added (may be a single body, constraint, composite or a mixed array of these)
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired when a call to `Composite.add` is made, after objects have been added.
-    *
-    * @event afterAdd
-    * @param {} event An event object
-    * @param {} event.object The object(s) that have been added (may be a single body, constraint, composite or a mixed array of these)
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired when a call to `Composite.remove` is made, before objects have been removed.
-    *
-    * @event beforeRemove
-    * @param {} event An event object
-    * @param {} event.object The object(s) to be removed (may be a single body, constraint, composite or a mixed array of these)
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired when a call to `Composite.remove` is made, after objects have been removed.
-    *
-    * @event afterRemove
-    * @param {} event An event object
-    * @param {} event.object The object(s) that have been removed (may be a single body, constraint, composite or a mixed array of these)
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /*
-    *
-    *  Properties Documentation
-    *
-    */
-
-    /**
-     * An integer `Number` uniquely identifying number generated in `Composite.create` by `Common.nextId`.
-     *
-     * @property id
-     * @type number
-     */
-
-    /**
-     * A `String` denoting the type of object.
-     *
-     * @property type
-     * @type string
-     * @default "composite"
-     * @readOnly
-     */
-
-    /**
-     * An arbitrary `String` name to help the user identify and manage composites.
-     *
-     * @property label
-     * @type string
-     * @default "Composite"
-     */
-
-    /**
-     * A flag that specifies whether the composite has been modified during the current step.
-     * This is automatically managed when bodies, constraints or composites are added or removed.
-     *
-     * @property isModified
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * The `Composite` that is the parent of this composite. It is automatically managed by the `Matter.Composite` methods.
-     *
-     * @property parent
-     * @type composite
-     * @default null
-     */
-
-    /**
-     * An array of `Body` that are _direct_ children of this composite.
-     * To add or remove bodies you should use `Composite.add` and `Composite.remove` methods rather than directly modifying this property.
-     * If you wish to recursively find all descendants, you should use the `Composite.allBodies` method.
-     *
-     * @property bodies
-     * @type body[]
-     * @default []
-     */
-
-    /**
-     * An array of `Constraint` that are _direct_ children of this composite.
-     * To add or remove constraints you should use `Composite.add` and `Composite.remove` methods rather than directly modifying this property.
-     * If you wish to recursively find all descendants, you should use the `Composite.allConstraints` method.
-     *
-     * @property constraints
-     * @type constraint[]
-     * @default []
-     */
-
-    /**
-     * An array of `Composite` that are _direct_ children of this composite.
-     * To add or remove composites you should use `Composite.add` and `Composite.remove` methods rather than directly modifying this property.
-     * If you wish to recursively find all descendants, you should use the `Composite.allComposites` method.
-     *
-     * @property composites
-     * @type composite[]
-     * @default []
-     */
-
-    /**
-     * An object reserved for storing plugin-specific properties.
-     *
-     * @property plugin
-     * @type {}
-     */
-
-    /**
-     * An object used for storing cached results for performance reasons.
-     * This is used internally only and is automatically managed.
-     *
-     * @private
-     * @property cache
-     * @type {}
-     */
-
-})();
-
-
-/***/ }),
-/* 6 */
-/***/ (function(module, exports, __webpack_require__) {
-
-/**
 * The `Matter.Body` module contains methods for creating and manipulating body models.
 * A `Matter.Body` is a rigid body that can be simulated by a `Matter.Engine`.
 * Factories for commonly used body configurations (such as rectangles, circles and other polygons) can be found in the module `Matter.Bodies`.
@@ -2441,11 +1502,10 @@ module.exports = Body;
 
 var Vertices = __webpack_require__(3);
 var Vector = __webpack_require__(2);
-var Sleeping = __webpack_require__(7);
-var Render = __webpack_require__(16);
+var Sleeping = __webpack_require__(5);
 var Common = __webpack_require__(0);
 var Bounds = __webpack_require__(1);
-var Axes = __webpack_require__(11);
+var Axes = __webpack_require__(10);
 
 (function() {
 
@@ -2499,19 +1559,6 @@ var Axes = __webpack_require__(11);
             },
             slop: 0.05,
             timeScale: 1,
-            render: {
-                visible: true,
-                opacity: 1,
-                strokeStyle: null,
-                fillStyle: null,
-                lineWidth: null,
-                sprite: {
-                    xScale: 1,
-                    yScale: 1,
-                    xOffset: 0,
-                    yOffset: 0
-                }
-            },
             events: null,
             bounds: null,
             chamfer: null,
@@ -2592,16 +1639,6 @@ var Axes = __webpack_require__(11);
             mass: options.mass || body.mass,
             inertia: options.inertia || body.inertia
         });
-
-        // render properties
-        var defaultFillStyle = (body.isStatic ? '#14151f' : Common.choose(['#f19648', '#f5d259', '#f55a3c', '#063e7b', '#ececd1'])),
-            defaultStrokeStyle = body.isStatic ? '#555' : '#ccc',
-            defaultLineWidth = body.isStatic && body.render.fillStyle === null ? 1 : 0;
-        body.render.fillStyle = body.render.fillStyle || defaultFillStyle;
-        body.render.strokeStyle = body.render.strokeStyle || defaultStrokeStyle;
-        body.render.lineWidth = body.render.lineWidth || defaultLineWidth;
-        body.render.sprite.xOffset += -(body.bounds.min.x - body.position.x) / (body.bounds.max.x - body.bounds.min.x);
-        body.render.sprite.yOffset += -(body.bounds.min.y - body.position.y) / (body.bounds.max.y - body.bounds.min.y);
     };
 
     /**
@@ -3539,102 +2576,6 @@ var Axes = __webpack_require__(11);
      */
 
     /**
-     * An `Object` that defines the rendering properties to be consumed by the module `Matter.Render`.
-     *
-     * @property render
-     * @type object
-     */
-
-    /**
-     * A flag that indicates if the body should be rendered.
-     *
-     * @property render.visible
-     * @type boolean
-     * @default true
-     */
-
-    /**
-     * Sets the opacity to use when rendering.
-     *
-     * @property render.opacity
-     * @type number
-     * @default 1
-    */
-
-    /**
-     * An `Object` that defines the sprite properties to use when rendering, if any.
-     *
-     * @property render.sprite
-     * @type object
-     */
-
-    /**
-     * An `String` that defines the path to the image to use as the sprite texture, if any.
-     *
-     * @property render.sprite.texture
-     * @type string
-     */
-     
-    /**
-     * A `Number` that defines the scaling in the x-axis for the sprite, if any.
-     *
-     * @property render.sprite.xScale
-     * @type number
-     * @default 1
-     */
-
-    /**
-     * A `Number` that defines the scaling in the y-axis for the sprite, if any.
-     *
-     * @property render.sprite.yScale
-     * @type number
-     * @default 1
-     */
-
-    /**
-      * A `Number` that defines the offset in the x-axis for the sprite (normalised by texture width).
-      *
-      * @property render.sprite.xOffset
-      * @type number
-      * @default 0
-      */
-
-    /**
-      * A `Number` that defines the offset in the y-axis for the sprite (normalised by texture height).
-      *
-      * @property render.sprite.yOffset
-      * @type number
-      * @default 0
-      */
-
-    /**
-     * A `Number` that defines the line width to use when rendering the body outline (if a sprite is not defined).
-     * A value of `0` means no outline will be rendered.
-     *
-     * @property render.lineWidth
-     * @type number
-     * @default 0
-     */
-
-    /**
-     * A `String` that defines the fill style to use when rendering the body (if a sprite is not defined).
-     * It is the same as when using a canvas, so it accepts CSS style property values.
-     *
-     * @property render.fillStyle
-     * @type string
-     * @default a random colour
-     */
-
-    /**
-     * A `String` that defines the stroke style to use when rendering the body outline (if a sprite is not defined).
-     * It is the same as when using a canvas, so it accepts CSS style property values.
-     *
-     * @property render.strokeStyle
-     * @type string
-     * @default a random colour
-     */
-
-    /**
      * An array of unique axis vectors (edge normals) used for collision detection.
      * These are automatically calculated from the given convex hull (`vertices` array) in `Body.create`.
      * They are constantly updated by `Body.update` during the simulation.
@@ -3663,7 +2604,7 @@ var Axes = __webpack_require__(11);
 
 
 /***/ }),
-/* 7 */
+/* 5 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -3676,7 +2617,7 @@ var Sleeping = {};
 
 module.exports = Sleeping;
 
-var Events = __webpack_require__(4);
+var Events = __webpack_require__(6);
 
 (function() {
 
@@ -3798,7 +2739,125 @@ var Events = __webpack_require__(4);
 
 
 /***/ }),
-/* 8 */
+/* 6 */
+/***/ (function(module, exports, __webpack_require__) {
+
+/**
+* The `Matter.Events` module contains methods to fire and listen to events on other objects.
+*
+* See the included usage [examples](https://github.com/liabru/matter-js/tree/master/examples).
+*
+* @class Events
+*/
+
+var Events = {};
+
+module.exports = Events;
+
+var Common = __webpack_require__(0);
+
+(function() {
+
+    /**
+     * Subscribes a callback function to the given object's `eventName`.
+     * @method on
+     * @param {} object
+     * @param {string} eventNames
+     * @param {function} callback
+     */
+    Events.on = function(object, eventNames, callback) {
+        var names = eventNames.split(' '),
+            name;
+
+        for (var i = 0; i < names.length; i++) {
+            name = names[i];
+            object.events = object.events || {};
+            object.events[name] = object.events[name] || [];
+            object.events[name].push(callback);
+        }
+
+        return callback;
+    };
+
+    /**
+     * Removes the given event callback. If no callback, clears all callbacks in `eventNames`. If no `eventNames`, clears all events.
+     * @method off
+     * @param {} object
+     * @param {string} eventNames
+     * @param {function} callback
+     */
+    Events.off = function(object, eventNames, callback) {
+        if (!eventNames) {
+            object.events = {};
+            return;
+        }
+
+        // handle Events.off(object, callback)
+        if (typeof eventNames === 'function') {
+            callback = eventNames;
+            eventNames = Common.keys(object.events).join(' ');
+        }
+
+        var names = eventNames.split(' ');
+
+        for (var i = 0; i < names.length; i++) {
+            var callbacks = object.events[names[i]],
+                newCallbacks = [];
+
+            if (callback && callbacks) {
+                for (var j = 0; j < callbacks.length; j++) {
+                    if (callbacks[j] !== callback)
+                        newCallbacks.push(callbacks[j]);
+                }
+            }
+
+            object.events[names[i]] = newCallbacks;
+        }
+    };
+
+    /**
+     * Fires all the callbacks subscribed to the given object's `eventName`, in the order they subscribed, if any.
+     * @method trigger
+     * @param {} object
+     * @param {string} eventNames
+     * @param {} event
+     */
+    Events.trigger = function(object, eventNames, event) {
+        var names,
+            name,
+            callbacks,
+            eventClone;
+
+        var events = object.events;
+        
+        if (events && Common.keys(events).length > 0) {
+            if (!event)
+                event = {};
+
+            names = eventNames.split(' ');
+
+            for (var i = 0; i < names.length; i++) {
+                name = names[i];
+                callbacks = events[name];
+
+                if (callbacks) {
+                    eventClone = Common.clone(event, false);
+                    eventClone.name = name;
+                    eventClone.source = object;
+
+                    for (var j = 0; j < callbacks.length; j++) {
+                        callbacks[j].apply(object, [eventClone]);
+                    }
+                }
+            }
+        }
+    };
+
+})();
+
+
+/***/ }),
+/* 7 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -3816,7 +2875,7 @@ var Collision = {};
 module.exports = Collision;
 
 var Vertices = __webpack_require__(3);
-var Pair = __webpack_require__(9);
+var Pair = __webpack_require__(8);
 
 (function() {
     var _supports = [];
@@ -4212,7 +3271,7 @@ var Pair = __webpack_require__(9);
 
 
 /***/ }),
-/* 9 */
+/* 8 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -4225,7 +3284,7 @@ var Pair = {};
 
 module.exports = Pair;
 
-var Contact = __webpack_require__(17);
+var Contact = __webpack_require__(14);
 
 (function() {
     
@@ -4342,336 +3401,630 @@ var Contact = __webpack_require__(17);
 
 
 /***/ }),
-/* 10 */
+/* 9 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
-* The `Matter.Constraint` module contains methods for creating and manipulating constraints.
-* Constraints are used for specifying that a fixed distance must be maintained between two bodies (or a body and a fixed world-space position).
-* The stiffness of constraints can be modified to create springs or elastic.
+* A composite is a collection of `Matter.Body`, `Matter.Constraint` and other `Matter.Composite` objects.
+*
+* They are a container that can represent complex objects made of multiple parts, even if they are not physically connected.
+* A composite could contain anything from a single body all the way up to a whole world.
+* 
+* When making any changes to composites, use the included functions rather than changing their properties directly.
 *
 * See the included usage [examples](https://github.com/liabru/matter-js/tree/master/examples).
 *
-* @class Constraint
+* @class Composite
 */
 
-var Constraint = {};
+var Composite = {};
 
-module.exports = Constraint;
+module.exports = Composite;
 
-var Vertices = __webpack_require__(3);
-var Vector = __webpack_require__(2);
-var Sleeping = __webpack_require__(7);
-var Bounds = __webpack_require__(1);
-var Axes = __webpack_require__(11);
+var Events = __webpack_require__(6);
 var Common = __webpack_require__(0);
+var Bounds = __webpack_require__(1);
+var Body = __webpack_require__(4);
 
 (function() {
 
-    Constraint._warming = 0.4;
-    Constraint._torqueDampen = 1;
-    Constraint._minLength = 0.000001;
-
     /**
-     * Creates a new constraint.
-     * All properties have default values, and many are pre-calculated automatically based on other properties.
-     * To simulate a revolute constraint (or pin joint) set `length: 0` and a high `stiffness` value (e.g. `0.7` or above).
-     * If the constraint is unstable, try lowering the `stiffness` value and / or increasing `engine.constraintIterations`.
-     * For compound bodies, constraints must be applied to the parent body (not one of its parts).
-     * See the properties section below for detailed information on what you can pass via the `options` object.
+     * Creates a new composite. The options parameter is an object that specifies any properties you wish to override the defaults.
+     * See the properites section below for detailed information on what you can pass via the `options` object.
      * @method create
-     * @param {} options
-     * @return {constraint} constraint
+     * @param {} [options]
+     * @return {composite} A new composite
      */
-    Constraint.create = function(options) {
-        var constraint = options;
-
-        // if bodies defined but no points, use body centre
-        if (constraint.bodyA && !constraint.pointA)
-            constraint.pointA = { x: 0, y: 0 };
-        if (constraint.bodyB && !constraint.pointB)
-            constraint.pointB = { x: 0, y: 0 };
-
-        // calculate static length using initial world space points
-        var initialPointA = constraint.bodyA ? Vector.add(constraint.bodyA.position, constraint.pointA) : constraint.pointA,
-            initialPointB = constraint.bodyB ? Vector.add(constraint.bodyB.position, constraint.pointB) : constraint.pointB,
-            length = Vector.magnitude(Vector.sub(initialPointA, initialPointB));
-    
-        constraint.length = typeof constraint.length !== 'undefined' ? constraint.length : length;
-
-        // option defaults
-        constraint.id = constraint.id || Common.nextId();
-        constraint.label = constraint.label || 'Constraint';
-        constraint.type = 'constraint';
-        constraint.stiffness = constraint.stiffness || (constraint.length > 0 ? 1 : 0.7);
-        constraint.damping = constraint.damping || 0;
-        constraint.angularStiffness = constraint.angularStiffness || 0;
-        constraint.angleA = constraint.bodyA ? constraint.bodyA.angle : constraint.angleA;
-        constraint.angleB = constraint.bodyB ? constraint.bodyB.angle : constraint.angleB;
-        constraint.plugin = {};
-
-        // render
-        var render = {
-            visible: true,
-            lineWidth: 2,
-            strokeStyle: '#ffffff',
-            type: 'line',
-            anchors: true
-        };
-
-        if (constraint.length === 0 && constraint.stiffness > 0.1) {
-            render.type = 'pin';
-            render.anchors = false;
-        } else if (constraint.stiffness < 0.9) {
-            render.type = 'spring';
-        }
-
-        constraint.render = Common.extend(render, constraint.render);
-
-        return constraint;
+    Composite.create = function(options) {
+        return Common.extend({ 
+            id: Common.nextId(),
+            type: 'composite',
+            parent: null,
+            isModified: false,
+            bodies: [], 
+            constraints: [], 
+            composites: [],
+            label: 'Composite',
+            plugin: {},
+            cache: {
+                allBodies: null,
+                allConstraints: null,
+                allComposites: null
+            }
+        }, options);
     };
 
     /**
-     * Prepares for solving by constraint warming.
+     * Sets the composite's `isModified` flag. 
+     * If `updateParents` is true, all parents will be set (default: false).
+     * If `updateChildren` is true, all children will be set (default: false).
      * @private
-     * @method preSolveAll
-     * @param {body[]} bodies
+     * @method setModified
+     * @param {composite} composite
+     * @param {boolean} isModified
+     * @param {boolean} [updateParents=false]
+     * @param {boolean} [updateChildren=false]
      */
-    Constraint.preSolveAll = function(bodies) {
-        for (var i = 0; i < bodies.length; i += 1) {
-            var body = bodies[i],
-                impulse = body.constraintImpulse;
+    Composite.setModified = function(composite, isModified, updateParents, updateChildren) {
+        composite.isModified = isModified;
 
-            if (body.isStatic || (impulse.x === 0 && impulse.y === 0 && impulse.angle === 0)) {
-                continue;
-            }
-
-            body.position.x += impulse.x;
-            body.position.y += impulse.y;
-            body.angle += impulse.angle;
-        }
-    };
-
-    /**
-     * Solves all constraints in a list of collisions.
-     * @private
-     * @method solveAll
-     * @param {constraint[]} constraints
-     * @param {number} timeScale
-     */
-    Constraint.solveAll = function(constraints, timeScale) {
-        // Solve fixed constraints first.
-        for (var i = 0; i < constraints.length; i += 1) {
-            var constraint = constraints[i],
-                fixedA = !constraint.bodyA || (constraint.bodyA && constraint.bodyA.isStatic),
-                fixedB = !constraint.bodyB || (constraint.bodyB && constraint.bodyB.isStatic);
-
-            if (fixedA || fixedB) {
-                Constraint.solve(constraints[i], timeScale);
-            }
+        if (isModified && composite.cache) {
+            composite.cache.allBodies = null;
+            composite.cache.allConstraints = null;
+            composite.cache.allComposites = null;
         }
 
-        // Solve free constraints last.
-        for (i = 0; i < constraints.length; i += 1) {
-            constraint = constraints[i];
-            fixedA = !constraint.bodyA || (constraint.bodyA && constraint.bodyA.isStatic);
-            fixedB = !constraint.bodyB || (constraint.bodyB && constraint.bodyB.isStatic);
+        if (updateParents && composite.parent) {
+            Composite.setModified(composite.parent, isModified, updateParents, updateChildren);
+        }
 
-            if (!fixedA && !fixedB) {
-                Constraint.solve(constraints[i], timeScale);
+        if (updateChildren) {
+            for (var i = 0; i < composite.composites.length; i++) {
+                var childComposite = composite.composites[i];
+                Composite.setModified(childComposite, isModified, updateParents, updateChildren);
             }
         }
     };
 
     /**
-     * Solves a distance constraint with Gauss-Siedel method.
+     * Generic single or multi-add function. Adds a single or an array of body(s), constraint(s) or composite(s) to the given composite.
+     * Triggers `beforeAdd` and `afterAdd` events on the `composite`.
+     * @method add
+     * @param {composite} composite
+     * @param {object|array} object A single or an array of body(s), constraint(s) or composite(s)
+     * @return {composite} The original composite with the objects added
+     */
+    Composite.add = function(composite, object) {
+        var objects = [].concat(object);
+
+        Events.trigger(composite, 'beforeAdd', { object: object });
+
+        for (var i = 0; i < objects.length; i++) {
+            var obj = objects[i];
+
+            switch (obj.type) {
+
+            case 'body':
+                // skip adding compound parts
+                if (obj.parent !== obj) {
+                    Common.warn('Composite.add: skipped adding a compound body part (you must add its parent instead)');
+                    break;
+                }
+
+                Composite.addBody(composite, obj);
+                break;
+            case 'constraint':
+                Composite.addConstraint(composite, obj);
+                break;
+            case 'composite':
+                Composite.addComposite(composite, obj);
+                break;
+
+            }
+        }
+
+        Events.trigger(composite, 'afterAdd', { object: object });
+
+        return composite;
+    };
+
+    /**
+     * Generic remove function. Removes one or many body(s), constraint(s) or a composite(s) to the given composite.
+     * Optionally searching its children recursively.
+     * Triggers `beforeRemove` and `afterRemove` events on the `composite`.
+     * @method remove
+     * @param {composite} composite
+     * @param {object|array} object
+     * @param {boolean} [deep=false]
+     * @return {composite} The original composite with the objects removed
+     */
+    Composite.remove = function(composite, object, deep) {
+        var objects = [].concat(object);
+
+        Events.trigger(composite, 'beforeRemove', { object: object });
+
+        for (var i = 0; i < objects.length; i++) {
+            var obj = objects[i];
+
+            switch (obj.type) {
+
+            case 'body':
+                Composite.removeBody(composite, obj, deep);
+                break;
+            case 'constraint':
+                Composite.removeConstraint(composite, obj, deep);
+                break;
+            case 'composite':
+                Composite.removeComposite(composite, obj, deep);
+                break;
+
+            }
+        }
+
+        Events.trigger(composite, 'afterRemove', { object: object });
+
+        return composite;
+    };
+
+    /**
+     * Adds a composite to the given composite.
      * @private
-     * @method solve
+     * @method addComposite
+     * @param {composite} compositeA
+     * @param {composite} compositeB
+     * @return {composite} The original compositeA with the objects from compositeB added
+     */
+    Composite.addComposite = function(compositeA, compositeB) {
+        compositeA.composites.push(compositeB);
+        compositeB.parent = compositeA;
+        Composite.setModified(compositeA, true, true, false);
+        return compositeA;
+    };
+
+    /**
+     * Removes a composite from the given composite, and optionally searching its children recursively.
+     * @private
+     * @method removeComposite
+     * @param {composite} compositeA
+     * @param {composite} compositeB
+     * @param {boolean} [deep=false]
+     * @return {composite} The original compositeA with the composite removed
+     */
+    Composite.removeComposite = function(compositeA, compositeB, deep) {
+        var position = Common.indexOf(compositeA.composites, compositeB);
+        if (position !== -1) {
+            Composite.removeCompositeAt(compositeA, position);
+        }
+
+        if (deep) {
+            for (var i = 0; i < compositeA.composites.length; i++){
+                Composite.removeComposite(compositeA.composites[i], compositeB, true);
+            }
+        }
+
+        return compositeA;
+    };
+
+    /**
+     * Removes a composite from the given composite.
+     * @private
+     * @method removeCompositeAt
+     * @param {composite} composite
+     * @param {number} position
+     * @return {composite} The original composite with the composite removed
+     */
+    Composite.removeCompositeAt = function(composite, position) {
+        composite.composites.splice(position, 1);
+        Composite.setModified(composite, true, true, false);
+        return composite;
+    };
+
+    /**
+     * Adds a body to the given composite.
+     * @private
+     * @method addBody
+     * @param {composite} composite
+     * @param {body} body
+     * @return {composite} The original composite with the body added
+     */
+    Composite.addBody = function(composite, body) {
+        composite.bodies.push(body);
+        Composite.setModified(composite, true, true, false);
+        return composite;
+    };
+
+    /**
+     * Removes a body from the given composite, and optionally searching its children recursively.
+     * @private
+     * @method removeBody
+     * @param {composite} composite
+     * @param {body} body
+     * @param {boolean} [deep=false]
+     * @return {composite} The original composite with the body removed
+     */
+    Composite.removeBody = function(composite, body, deep) {
+        var position = Common.indexOf(composite.bodies, body);
+        if (position !== -1) {
+            Composite.removeBodyAt(composite, position);
+        }
+
+        if (deep) {
+            for (var i = 0; i < composite.composites.length; i++){
+                Composite.removeBody(composite.composites[i], body, true);
+            }
+        }
+
+        return composite;
+    };
+
+    /**
+     * Removes a body from the given composite.
+     * @private
+     * @method removeBodyAt
+     * @param {composite} composite
+     * @param {number} position
+     * @return {composite} The original composite with the body removed
+     */
+    Composite.removeBodyAt = function(composite, position) {
+        composite.bodies.splice(position, 1);
+        Composite.setModified(composite, true, true, false);
+        return composite;
+    };
+
+    /**
+     * Adds a constraint to the given composite.
+     * @private
+     * @method addConstraint
+     * @param {composite} composite
      * @param {constraint} constraint
-     * @param {number} timeScale
+     * @return {composite} The original composite with the constraint added
      */
-    Constraint.solve = function(constraint, timeScale) {
-        var bodyA = constraint.bodyA,
-            bodyB = constraint.bodyB,
-            pointA = constraint.pointA,
-            pointB = constraint.pointB;
+    Composite.addConstraint = function(composite, constraint) {
+        composite.constraints.push(constraint);
+        Composite.setModified(composite, true, true, false);
+        return composite;
+    };
 
-        if (!bodyA && !bodyB)
-            return;
+    /**
+     * Removes a constraint from the given composite, and optionally searching its children recursively.
+     * @private
+     * @method removeConstraint
+     * @param {composite} composite
+     * @param {constraint} constraint
+     * @param {boolean} [deep=false]
+     * @return {composite} The original composite with the constraint removed
+     */
+    Composite.removeConstraint = function(composite, constraint, deep) {
+        var position = Common.indexOf(composite.constraints, constraint);
+        if (position !== -1) {
+            Composite.removeConstraintAt(composite, position);
+        }
 
-        // update reference angle
-        if (bodyA && !bodyA.isStatic) {
-            Vector.rotate(pointA, bodyA.angle - constraint.angleA, pointA);
-            constraint.angleA = bodyA.angle;
+        if (deep) {
+            for (var i = 0; i < composite.composites.length; i++){
+                Composite.removeConstraint(composite.composites[i], constraint, true);
+            }
+        }
+
+        return composite;
+    };
+
+    /**
+     * Removes a body from the given composite.
+     * @private
+     * @method removeConstraintAt
+     * @param {composite} composite
+     * @param {number} position
+     * @return {composite} The original composite with the constraint removed
+     */
+    Composite.removeConstraintAt = function(composite, position) {
+        composite.constraints.splice(position, 1);
+        Composite.setModified(composite, true, true, false);
+        return composite;
+    };
+
+    /**
+     * Removes all bodies, constraints and composites from the given composite.
+     * Optionally clearing its children recursively.
+     * @method clear
+     * @param {composite} composite
+     * @param {boolean} keepStatic
+     * @param {boolean} [deep=false]
+     */
+    Composite.clear = function(composite, keepStatic, deep) {
+        if (deep) {
+            for (var i = 0; i < composite.composites.length; i++){
+                Composite.clear(composite.composites[i], keepStatic, true);
+            }
         }
         
-        // update reference angle
-        if (bodyB && !bodyB.isStatic) {
-            Vector.rotate(pointB, bodyB.angle - constraint.angleB, pointB);
-            constraint.angleB = bodyB.angle;
+        if (keepStatic) {
+            composite.bodies = composite.bodies.filter(function(body) { return body.isStatic; });
+        } else {
+            composite.bodies.length = 0;
         }
 
-        var pointAWorld = pointA,
-            pointBWorld = pointB;
+        composite.constraints.length = 0;
+        composite.composites.length = 0;
 
-        if (bodyA) pointAWorld = Vector.add(bodyA.position, pointA);
-        if (bodyB) pointBWorld = Vector.add(bodyB.position, pointB);
+        Composite.setModified(composite, true, true, false);
 
-        if (!pointAWorld || !pointBWorld)
-            return;
-
-        var delta = Vector.sub(pointAWorld, pointBWorld),
-            currentLength = Vector.magnitude(delta);
-
-        // prevent singularity
-        if (currentLength < Constraint._minLength) {
-            currentLength = Constraint._minLength;
-        }
-
-        // solve distance constraint with Gauss-Siedel method
-        var difference = (currentLength - constraint.length) / currentLength,
-            stiffness = constraint.stiffness < 1 ? constraint.stiffness * timeScale : constraint.stiffness,
-            force = Vector.mult(delta, difference * stiffness),
-            massTotal = (bodyA ? bodyA.inverseMass : 0) + (bodyB ? bodyB.inverseMass : 0),
-            inertiaTotal = (bodyA ? bodyA.inverseInertia : 0) + (bodyB ? bodyB.inverseInertia : 0),
-            resistanceTotal = massTotal + inertiaTotal,
-            torque,
-            share,
-            normal,
-            normalVelocity,
-            relativeVelocity;
-
-        if (constraint.damping) {
-            var zero = Vector.create();
-            normal = Vector.div(delta, currentLength);
-
-            relativeVelocity = Vector.sub(
-                bodyB && Vector.sub(bodyB.position, bodyB.positionPrev) || zero,
-                bodyA && Vector.sub(bodyA.position, bodyA.positionPrev) || zero
-            );
-
-            normalVelocity = Vector.dot(normal, relativeVelocity);
-        }
-
-        if (bodyA && !bodyA.isStatic) {
-            share = bodyA.inverseMass / massTotal;
-
-            // keep track of applied impulses for post solving
-            bodyA.constraintImpulse.x -= force.x * share;
-            bodyA.constraintImpulse.y -= force.y * share;
-
-            // apply forces
-            bodyA.position.x -= force.x * share;
-            bodyA.position.y -= force.y * share;
-
-            // apply damping
-            if (constraint.damping) {
-                bodyA.positionPrev.x -= constraint.damping * normal.x * normalVelocity * share;
-                bodyA.positionPrev.y -= constraint.damping * normal.y * normalVelocity * share;
-            }
-
-            // apply torque
-            torque = (Vector.cross(pointA, force) / resistanceTotal) * Constraint._torqueDampen * bodyA.inverseInertia * (1 - constraint.angularStiffness);
-            bodyA.constraintImpulse.angle -= torque;
-            bodyA.angle -= torque;
-        }
-
-        if (bodyB && !bodyB.isStatic) {
-            share = bodyB.inverseMass / massTotal;
-
-            // keep track of applied impulses for post solving
-            bodyB.constraintImpulse.x += force.x * share;
-            bodyB.constraintImpulse.y += force.y * share;
-            
-            // apply forces
-            bodyB.position.x += force.x * share;
-            bodyB.position.y += force.y * share;
-
-            // apply damping
-            if (constraint.damping) {
-                bodyB.positionPrev.x += constraint.damping * normal.x * normalVelocity * share;
-                bodyB.positionPrev.y += constraint.damping * normal.y * normalVelocity * share;
-            }
-
-            // apply torque
-            torque = (Vector.cross(pointB, force) / resistanceTotal) * Constraint._torqueDampen * bodyB.inverseInertia * (1 - constraint.angularStiffness);
-            bodyB.constraintImpulse.angle += torque;
-            bodyB.angle += torque;
-        }
-
+        return composite;
     };
 
     /**
-     * Performs body updates required after solving constraints.
-     * @private
-     * @method postSolveAll
-     * @param {body[]} bodies
+     * Returns all bodies in the given composite, including all bodies in its children, recursively.
+     * @method allBodies
+     * @param {composite} composite
+     * @return {body[]} All the bodies
      */
-    Constraint.postSolveAll = function(bodies) {
+    Composite.allBodies = function(composite) {
+        if (composite.cache && composite.cache.allBodies) {
+            return composite.cache.allBodies;
+        }
+
+        var bodies = [].concat(composite.bodies);
+
+        for (var i = 0; i < composite.composites.length; i++)
+            bodies = bodies.concat(Composite.allBodies(composite.composites[i]));
+
+        if (composite.cache) {
+            composite.cache.allBodies = bodies;
+        }
+
+        return bodies;
+    };
+
+    /**
+     * Returns all constraints in the given composite, including all constraints in its children, recursively.
+     * @method allConstraints
+     * @param {composite} composite
+     * @return {constraint[]} All the constraints
+     */
+    Composite.allConstraints = function(composite) {
+        if (composite.cache && composite.cache.allConstraints) {
+            return composite.cache.allConstraints;
+        }
+
+        var constraints = [].concat(composite.constraints);
+
+        for (var i = 0; i < composite.composites.length; i++)
+            constraints = constraints.concat(Composite.allConstraints(composite.composites[i]));
+
+        if (composite.cache) {
+            composite.cache.allConstraints = constraints;
+        }
+
+        return constraints;
+    };
+
+    /**
+     * Returns all composites in the given composite, including all composites in its children, recursively.
+     * @method allComposites
+     * @param {composite} composite
+     * @return {composite[]} All the composites
+     */
+    Composite.allComposites = function(composite) {
+        if (composite.cache && composite.cache.allComposites) {
+            return composite.cache.allComposites;
+        }
+
+        var composites = [].concat(composite.composites);
+
+        for (var i = 0; i < composite.composites.length; i++)
+            composites = composites.concat(Composite.allComposites(composite.composites[i]));
+
+        if (composite.cache) {
+            composite.cache.allComposites = composites;
+        }
+
+        return composites;
+    };
+
+    /**
+     * Searches the composite recursively for an object matching the type and id supplied, null if not found.
+     * @method get
+     * @param {composite} composite
+     * @param {number} id
+     * @param {string} type
+     * @return {object} The requested object, if found
+     */
+    Composite.get = function(composite, id, type) {
+        var objects,
+            object;
+
+        switch (type) {
+        case 'body':
+            objects = Composite.allBodies(composite);
+            break;
+        case 'constraint':
+            objects = Composite.allConstraints(composite);
+            break;
+        case 'composite':
+            objects = Composite.allComposites(composite).concat(composite);
+            break;
+        }
+
+        if (!objects)
+            return null;
+
+        object = objects.filter(function(object) { 
+            return object.id.toString() === id.toString(); 
+        });
+
+        return object.length === 0 ? null : object[0];
+    };
+
+    /**
+     * Moves the given object(s) from compositeA to compositeB (equal to a remove followed by an add).
+     * @method move
+     * @param {compositeA} compositeA
+     * @param {object[]} objects
+     * @param {compositeB} compositeB
+     * @return {composite} Returns compositeA
+     */
+    Composite.move = function(compositeA, objects, compositeB) {
+        Composite.remove(compositeA, objects);
+        Composite.add(compositeB, objects);
+        return compositeA;
+    };
+
+    /**
+     * Assigns new ids for all objects in the composite, recursively.
+     * @method rebase
+     * @param {composite} composite
+     * @return {composite} Returns composite
+     */
+    Composite.rebase = function(composite) {
+        var objects = Composite.allBodies(composite)
+            .concat(Composite.allConstraints(composite))
+            .concat(Composite.allComposites(composite));
+
+        for (var i = 0; i < objects.length; i++) {
+            objects[i].id = Common.nextId();
+        }
+
+        return composite;
+    };
+
+    /**
+     * Translates all children in the composite by a given vector relative to their current positions, 
+     * without imparting any velocity.
+     * @method translate
+     * @param {composite} composite
+     * @param {vector} translation
+     * @param {bool} [recursive=true]
+     */
+    Composite.translate = function(composite, translation, recursive) {
+        var bodies = recursive ? Composite.allBodies(composite) : composite.bodies;
+
+        for (var i = 0; i < bodies.length; i++) {
+            Body.translate(bodies[i], translation);
+        }
+
+        return composite;
+    };
+
+    /**
+     * Rotates all children in the composite by a given angle about the given point, without imparting any angular velocity.
+     * @method rotate
+     * @param {composite} composite
+     * @param {number} rotation
+     * @param {vector} point
+     * @param {bool} [recursive=true]
+     */
+    Composite.rotate = function(composite, rotation, point, recursive) {
+        var cos = Math.cos(rotation),
+            sin = Math.sin(rotation),
+            bodies = recursive ? Composite.allBodies(composite) : composite.bodies;
+
         for (var i = 0; i < bodies.length; i++) {
             var body = bodies[i],
-                impulse = body.constraintImpulse;
-
-            if (body.isStatic || (impulse.x === 0 && impulse.y === 0 && impulse.angle === 0)) {
-                continue;
-            }
-
-            Sleeping.set(body, false);
-
-            // update geometry and reset
-            for (var j = 0; j < body.parts.length; j++) {
-                var part = body.parts[j];
+                dx = body.position.x - point.x,
+                dy = body.position.y - point.y;
                 
-                Vertices.translate(part.vertices, impulse);
+            Body.setPosition(body, {
+                x: point.x + (dx * cos - dy * sin),
+                y: point.y + (dx * sin + dy * cos)
+            });
 
-                if (j > 0) {
-                    part.position.x += impulse.x;
-                    part.position.y += impulse.y;
-                }
-
-                if (impulse.angle !== 0) {
-                    Vertices.rotate(part.vertices, impulse.angle, body.position);
-                    Axes.rotate(part.axes, impulse.angle);
-                    if (j > 0) {
-                        Vector.rotateAbout(part.position, impulse.angle, body.position, part.position);
-                    }
-                }
-
-                Bounds.update(part.bounds, part.vertices, body.velocity);
-            }
-
-            // dampen the cached impulse for warming next step
-            impulse.angle *= Constraint._warming;
-            impulse.x *= Constraint._warming;
-            impulse.y *= Constraint._warming;
+            Body.rotate(body, rotation);
         }
+
+        return composite;
     };
 
     /**
-     * Returns the world-space position of `constraint.pointA`, accounting for `constraint.bodyA`.
-     * @method pointAWorld
-     * @param {constraint} constraint
-     * @returns {vector} the world-space position
+     * Scales all children in the composite, including updating physical properties (mass, area, axes, inertia), from a world-space point.
+     * @method scale
+     * @param {composite} composite
+     * @param {number} scaleX
+     * @param {number} scaleY
+     * @param {vector} point
+     * @param {bool} [recursive=true]
      */
-    Constraint.pointAWorld = function(constraint) {
-        return {
-            x: (constraint.bodyA ? constraint.bodyA.position.x : 0) + constraint.pointA.x,
-            y: (constraint.bodyA ? constraint.bodyA.position.y : 0) + constraint.pointA.y
-        };
+    Composite.scale = function(composite, scaleX, scaleY, point, recursive) {
+        var bodies = recursive ? Composite.allBodies(composite) : composite.bodies;
+
+        for (var i = 0; i < bodies.length; i++) {
+            var body = bodies[i],
+                dx = body.position.x - point.x,
+                dy = body.position.y - point.y;
+                
+            Body.setPosition(body, {
+                x: point.x + dx * scaleX,
+                y: point.y + dy * scaleY
+            });
+
+            Body.scale(body, scaleX, scaleY);
+        }
+
+        return composite;
     };
 
     /**
-     * Returns the world-space position of `constraint.pointB`, accounting for `constraint.bodyB`.
-     * @method pointBWorld
-     * @param {constraint} constraint
-     * @returns {vector} the world-space position
+     * Returns the union of the bounds of all of the composite's bodies.
+     * @method bounds
+     * @param {composite} composite The composite.
+     * @returns {bounds} The composite bounds.
      */
-    Constraint.pointBWorld = function(constraint) {
-        return {
-            x: (constraint.bodyB ? constraint.bodyB.position.x : 0) + constraint.pointB.x,
-            y: (constraint.bodyB ? constraint.bodyB.position.y : 0) + constraint.pointB.y
-        };
+    Composite.bounds = function(composite) {
+        var bodies = Composite.allBodies(composite),
+            vertices = [];
+
+        for (var i = 0; i < bodies.length; i += 1) {
+            var body = bodies[i];
+            vertices.push(body.bounds.min, body.bounds.max);
+        }
+
+        return Bounds.create(vertices);
     };
+
+    /*
+    *
+    *  Events Documentation
+    *
+    */
+
+    /**
+    * Fired when a call to `Composite.add` is made, before objects have been added.
+    *
+    * @event beforeAdd
+    * @param {} event An event object
+    * @param {} event.object The object(s) to be added (may be a single body, constraint, composite or a mixed array of these)
+    * @param {} event.source The source object of the event
+    * @param {} event.name The name of the event
+    */
+
+    /**
+    * Fired when a call to `Composite.add` is made, after objects have been added.
+    *
+    * @event afterAdd
+    * @param {} event An event object
+    * @param {} event.object The object(s) that have been added (may be a single body, constraint, composite or a mixed array of these)
+    * @param {} event.source The source object of the event
+    * @param {} event.name The name of the event
+    */
+
+    /**
+    * Fired when a call to `Composite.remove` is made, before objects have been removed.
+    *
+    * @event beforeRemove
+    * @param {} event An event object
+    * @param {} event.object The object(s) to be removed (may be a single body, constraint, composite or a mixed array of these)
+    * @param {} event.source The source object of the event
+    * @param {} event.name The name of the event
+    */
+
+    /**
+    * Fired when a call to `Composite.remove` is made, after objects have been removed.
+    *
+    * @event afterRemove
+    * @param {} event An event object
+    * @param {} event.object The object(s) that have been removed (may be a single body, constraint, composite or a mixed array of these)
+    * @param {} event.source The source object of the event
+    * @param {} event.name The name of the event
+    */
 
     /*
     *
@@ -4691,129 +4044,63 @@ var Common = __webpack_require__(0);
      *
      * @property type
      * @type string
-     * @default "constraint"
+     * @default "composite"
      * @readOnly
      */
 
     /**
-     * An arbitrary `String` name to help the user identify and manage bodies.
+     * An arbitrary `String` name to help the user identify and manage composites.
      *
      * @property label
      * @type string
-     * @default "Constraint"
+     * @default "Composite"
      */
 
     /**
-     * An `Object` that defines the rendering properties to be consumed by the module `Matter.Render`.
+     * A flag that specifies whether the composite has been modified during the current step.
+     * This is automatically managed when bodies, constraints or composites are added or removed.
      *
-     * @property render
-     * @type object
-     */
-
-    /**
-     * A flag that indicates if the constraint should be rendered.
-     *
-     * @property render.visible
+     * @property isModified
      * @type boolean
-     * @default true
+     * @default false
      */
 
     /**
-     * A `Number` that defines the line width to use when rendering the constraint outline.
-     * A value of `0` means no outline will be rendered.
+     * The `Composite` that is the parent of this composite. It is automatically managed by the `Matter.Composite` methods.
      *
-     * @property render.lineWidth
-     * @type number
-     * @default 2
-     */
-
-    /**
-     * A `String` that defines the stroke style to use when rendering the constraint outline.
-     * It is the same as when using a canvas, so it accepts CSS style property values.
-     *
-     * @property render.strokeStyle
-     * @type string
-     * @default a random colour
-     */
-
-    /**
-     * A `String` that defines the constraint rendering type. 
-     * The possible values are 'line', 'pin', 'spring'.
-     * An appropriate render type will be automatically chosen unless one is given in options.
-     *
-     * @property render.type
-     * @type string
-     * @default 'line'
-     */
-
-    /**
-     * A `Boolean` that defines if the constraint's anchor points should be rendered.
-     *
-     * @property render.anchors
-     * @type boolean
-     * @default true
-     */
-
-    /**
-     * The first possible `Body` that this constraint is attached to.
-     *
-     * @property bodyA
-     * @type body
+     * @property parent
+     * @type composite
      * @default null
      */
 
     /**
-     * The second possible `Body` that this constraint is attached to.
+     * An array of `Body` that are _direct_ children of this composite.
+     * To add or remove bodies you should use `Composite.add` and `Composite.remove` methods rather than directly modifying this property.
+     * If you wish to recursively find all descendants, you should use the `Composite.allBodies` method.
      *
-     * @property bodyB
-     * @type body
-     * @default null
+     * @property bodies
+     * @type body[]
+     * @default []
      */
 
     /**
-     * A `Vector` that specifies the offset of the constraint from center of the `constraint.bodyA` if defined, otherwise a world-space position.
+     * An array of `Constraint` that are _direct_ children of this composite.
+     * To add or remove constraints you should use `Composite.add` and `Composite.remove` methods rather than directly modifying this property.
+     * If you wish to recursively find all descendants, you should use the `Composite.allConstraints` method.
      *
-     * @property pointA
-     * @type vector
-     * @default { x: 0, y: 0 }
+     * @property constraints
+     * @type constraint[]
+     * @default []
      */
 
     /**
-     * A `Vector` that specifies the offset of the constraint from center of the `constraint.bodyB` if defined, otherwise a world-space position.
+     * An array of `Composite` that are _direct_ children of this composite.
+     * To add or remove composites you should use `Composite.add` and `Composite.remove` methods rather than directly modifying this property.
+     * If you wish to recursively find all descendants, you should use the `Composite.allComposites` method.
      *
-     * @property pointB
-     * @type vector
-     * @default { x: 0, y: 0 }
-     */
-
-    /**
-     * A `Number` that specifies the stiffness of the constraint, i.e. the rate at which it returns to its resting `constraint.length`.
-     * A value of `1` means the constraint should be very stiff.
-     * A value of `0.2` means the constraint acts like a soft spring.
-     *
-     * @property stiffness
-     * @type number
-     * @default 1
-     */
-
-    /**
-     * A `Number` that specifies the damping of the constraint, 
-     * i.e. the amount of resistance applied to each body based on their velocities to limit the amount of oscillation.
-     * Damping will only be apparent when the constraint also has a very low `stiffness`.
-     * A value of `0.1` means the constraint will apply heavy damping, resulting in little to no oscillation.
-     * A value of `0` means the constraint will apply no damping.
-     *
-     * @property damping
-     * @type number
-     * @default 0
-     */
-
-    /**
-     * A `Number` that specifies the target resting length of the constraint. 
-     * It is calculated automatically in `Constraint.create` from initial positions of the `constraint.bodyA` and `constraint.bodyB`.
-     *
-     * @property length
-     * @type number
+     * @property composites
+     * @type composite[]
+     * @default []
      */
 
     /**
@@ -4823,11 +4110,20 @@ var Common = __webpack_require__(0);
      * @type {}
      */
 
+    /**
+     * An object used for storing cached results for performance reasons.
+     * This is used internally only and is automatically managed.
+     *
+     * @private
+     * @property cache
+     * @type {}
+     */
+
 })();
 
 
 /***/ }),
-/* 11 */
+/* 10 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -4897,7 +4193,7 @@ var Common = __webpack_require__(0);
 
 
 /***/ }),
-/* 12 */
+/* 11 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -4917,7 +4213,7 @@ module.exports = Bodies;
 
 var Vertices = __webpack_require__(3);
 var Common = __webpack_require__(0);
-var Body = __webpack_require__(6);
+var Body = __webpack_require__(4);
 var Bounds = __webpack_require__(1);
 var Vector = __webpack_require__(2);
 
@@ -5261,381 +4557,321 @@ var Vector = __webpack_require__(2);
 
 
 /***/ }),
-/* 13 */
+/* 12 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
-* The `Matter.Mouse` module contains methods for creating and manipulating mouse inputs.
+* The `Matter.Constraint` module contains methods for creating and manipulating constraints.
+* Constraints are used for specifying that a fixed distance must be maintained between two bodies (or a body and a fixed world-space position).
+* The stiffness of constraints can be modified to create springs or elastic.
 *
-* @class Mouse
+* See the included usage [examples](https://github.com/liabru/matter-js/tree/master/examples).
+*
+* @class Constraint
 */
 
-var Mouse = {};
+var Constraint = {};
 
-module.exports = Mouse;
+module.exports = Constraint;
 
+var Vertices = __webpack_require__(3);
+var Vector = __webpack_require__(2);
+var Sleeping = __webpack_require__(5);
+var Bounds = __webpack_require__(1);
+var Axes = __webpack_require__(10);
 var Common = __webpack_require__(0);
 
 (function() {
 
-    /**
-     * Creates a mouse input.
-     * @method create
-     * @param {HTMLElement} element
-     * @return {mouse} A new mouse
-     */
-    Mouse.create = function(element) {
-        var mouse = {};
-
-        if (!element) {
-            Common.log('Mouse.create: element was undefined, defaulting to document.body', 'warn');
-        }
-        
-        mouse.element = element || document.body;
-        mouse.absolute = { x: 0, y: 0 };
-        mouse.position = { x: 0, y: 0 };
-        mouse.mousedownPosition = { x: 0, y: 0 };
-        mouse.mouseupPosition = { x: 0, y: 0 };
-        mouse.offset = { x: 0, y: 0 };
-        mouse.scale = { x: 1, y: 1 };
-        mouse.wheelDelta = 0;
-        mouse.button = -1;
-        mouse.pixelRatio = parseInt(mouse.element.getAttribute('data-pixel-ratio'), 10) || 1;
-
-        mouse.sourceEvents = {
-            mousemove: null,
-            mousedown: null,
-            mouseup: null,
-            mousewheel: null
-        };
-        
-        mouse.mousemove = function(event) { 
-            var position = Mouse._getRelativeMousePosition(event, mouse.element, mouse.pixelRatio),
-                touches = event.changedTouches;
-
-            if (touches) {
-                mouse.button = 0;
-                event.preventDefault();
-            }
-
-            mouse.absolute.x = position.x;
-            mouse.absolute.y = position.y;
-            mouse.position.x = mouse.absolute.x * mouse.scale.x + mouse.offset.x;
-            mouse.position.y = mouse.absolute.y * mouse.scale.y + mouse.offset.y;
-            mouse.sourceEvents.mousemove = event;
-        };
-        
-        mouse.mousedown = function(event) {
-            var position = Mouse._getRelativeMousePosition(event, mouse.element, mouse.pixelRatio),
-                touches = event.changedTouches;
-
-            if (touches) {
-                mouse.button = 0;
-                event.preventDefault();
-            } else {
-                mouse.button = event.button;
-            }
-
-            mouse.absolute.x = position.x;
-            mouse.absolute.y = position.y;
-            mouse.position.x = mouse.absolute.x * mouse.scale.x + mouse.offset.x;
-            mouse.position.y = mouse.absolute.y * mouse.scale.y + mouse.offset.y;
-            mouse.mousedownPosition.x = mouse.position.x;
-            mouse.mousedownPosition.y = mouse.position.y;
-            mouse.sourceEvents.mousedown = event;
-        };
-        
-        mouse.mouseup = function(event) {
-            var position = Mouse._getRelativeMousePosition(event, mouse.element, mouse.pixelRatio),
-                touches = event.changedTouches;
-
-            if (touches) {
-                event.preventDefault();
-            }
-            
-            mouse.button = -1;
-            mouse.absolute.x = position.x;
-            mouse.absolute.y = position.y;
-            mouse.position.x = mouse.absolute.x * mouse.scale.x + mouse.offset.x;
-            mouse.position.y = mouse.absolute.y * mouse.scale.y + mouse.offset.y;
-            mouse.mouseupPosition.x = mouse.position.x;
-            mouse.mouseupPosition.y = mouse.position.y;
-            mouse.sourceEvents.mouseup = event;
-        };
-
-        mouse.mousewheel = function(event) {
-            mouse.wheelDelta = Math.max(-1, Math.min(1, event.wheelDelta || -event.detail));
-            event.preventDefault();
-        };
-
-        Mouse.setElement(mouse, mouse.element);
-
-        return mouse;
-    };
+    Constraint._warming = 0.4;
+    Constraint._torqueDampen = 1;
+    Constraint._minLength = 0.000001;
 
     /**
-     * Sets the element the mouse is bound to (and relative to).
-     * @method setElement
-     * @param {mouse} mouse
-     * @param {HTMLElement} element
-     */
-    Mouse.setElement = function(mouse, element) {
-        mouse.element = element;
-
-        element.addEventListener('mousemove', mouse.mousemove);
-        element.addEventListener('mousedown', mouse.mousedown);
-        element.addEventListener('mouseup', mouse.mouseup);
-        
-        element.addEventListener('mousewheel', mouse.mousewheel);
-        element.addEventListener('DOMMouseScroll', mouse.mousewheel);
-
-        element.addEventListener('touchmove', mouse.mousemove);
-        element.addEventListener('touchstart', mouse.mousedown);
-        element.addEventListener('touchend', mouse.mouseup);
-    };
-
-    /**
-     * Clears all captured source events.
-     * @method clearSourceEvents
-     * @param {mouse} mouse
-     */
-    Mouse.clearSourceEvents = function(mouse) {
-        mouse.sourceEvents.mousemove = null;
-        mouse.sourceEvents.mousedown = null;
-        mouse.sourceEvents.mouseup = null;
-        mouse.sourceEvents.mousewheel = null;
-        mouse.wheelDelta = 0;
-    };
-
-    /**
-     * Sets the mouse position offset.
-     * @method setOffset
-     * @param {mouse} mouse
-     * @param {vector} offset
-     */
-    Mouse.setOffset = function(mouse, offset) {
-        mouse.offset.x = offset.x;
-        mouse.offset.y = offset.y;
-        mouse.position.x = mouse.absolute.x * mouse.scale.x + mouse.offset.x;
-        mouse.position.y = mouse.absolute.y * mouse.scale.y + mouse.offset.y;
-    };
-
-    /**
-     * Sets the mouse position scale.
-     * @method setScale
-     * @param {mouse} mouse
-     * @param {vector} scale
-     */
-    Mouse.setScale = function(mouse, scale) {
-        mouse.scale.x = scale.x;
-        mouse.scale.y = scale.y;
-        mouse.position.x = mouse.absolute.x * mouse.scale.x + mouse.offset.x;
-        mouse.position.y = mouse.absolute.y * mouse.scale.y + mouse.offset.y;
-    };
-    
-    /**
-     * Gets the mouse position relative to an element given a screen pixel ratio.
-     * @method _getRelativeMousePosition
-     * @private
-     * @param {} event
-     * @param {} element
-     * @param {number} pixelRatio
-     * @return {}
-     */
-    Mouse._getRelativeMousePosition = function(event, element, pixelRatio) {
-        var elementBounds = element.getBoundingClientRect(),
-            rootNode = (document.documentElement || document.body.parentNode || document.body),
-            scrollX = (window.pageXOffset !== undefined) ? window.pageXOffset : rootNode.scrollLeft,
-            scrollY = (window.pageYOffset !== undefined) ? window.pageYOffset : rootNode.scrollTop,
-            touches = event.changedTouches,
-            x, y;
-        
-        if (touches) {
-            x = touches[0].pageX - elementBounds.left - scrollX;
-            y = touches[0].pageY - elementBounds.top - scrollY;
-        } else {
-            x = event.pageX - elementBounds.left - scrollX;
-            y = event.pageY - elementBounds.top - scrollY;
-        }
-
-        return { 
-            x: x / (element.clientWidth / (element.width || element.clientWidth) * pixelRatio),
-            y: y / (element.clientHeight / (element.height || element.clientHeight) * pixelRatio)
-        };
-    };
-
-})();
-
-
-/***/ }),
-/* 14 */
-/***/ (function(module, exports, __webpack_require__) {
-
-/**
-* The `Matter.Detector` module contains methods for efficiently detecting collisions between a list of bodies using a broadphase algorithm.
-*
-* @class Detector
-*/
-
-var Detector = {};
-
-module.exports = Detector;
-
-var Common = __webpack_require__(0);
-var Collision = __webpack_require__(8);
-
-(function() {
-
-    /**
-     * Creates a new collision detector.
+     * Creates a new constraint.
+     * All properties have default values, and many are pre-calculated automatically based on other properties.
+     * To simulate a revolute constraint (or pin joint) set `length: 0` and a high `stiffness` value (e.g. `0.7` or above).
+     * If the constraint is unstable, try lowering the `stiffness` value and / or increasing `engine.constraintIterations`.
+     * For compound bodies, constraints must be applied to the parent body (not one of its parts).
+     * See the properties section below for detailed information on what you can pass via the `options` object.
      * @method create
      * @param {} options
-     * @return {detector} A new collision detector
+     * @return {constraint} constraint
      */
-    Detector.create = function(options) {
-        var defaults = {
-            bodies: [],
-            pairs: null
-        };
+    Constraint.create = function(options) {
+        var constraint = options;
 
-        return Common.extend(defaults, options);
+        // if bodies defined but no points, use body centre
+        if (constraint.bodyA && !constraint.pointA)
+            constraint.pointA = { x: 0, y: 0 };
+        if (constraint.bodyB && !constraint.pointB)
+            constraint.pointB = { x: 0, y: 0 };
+
+        // calculate static length using initial world space points
+        var initialPointA = constraint.bodyA ? Vector.add(constraint.bodyA.position, constraint.pointA) : constraint.pointA,
+            initialPointB = constraint.bodyB ? Vector.add(constraint.bodyB.position, constraint.pointB) : constraint.pointB,
+            length = Vector.magnitude(Vector.sub(initialPointA, initialPointB));
+    
+        constraint.length = typeof constraint.length !== 'undefined' ? constraint.length : length;
+
+        // option defaults
+        constraint.id = constraint.id || Common.nextId();
+        constraint.label = constraint.label || 'Constraint';
+        constraint.type = 'constraint';
+        constraint.stiffness = constraint.stiffness || (constraint.length > 0 ? 1 : 0.7);
+        constraint.damping = constraint.damping || 0;
+        constraint.angularStiffness = constraint.angularStiffness || 0;
+        constraint.angleA = constraint.bodyA ? constraint.bodyA.angle : constraint.angleA;
+        constraint.angleB = constraint.bodyB ? constraint.bodyB.angle : constraint.angleB;
+        constraint.plugin = {};
+
+        return constraint;
     };
 
     /**
-     * Sets the list of bodies in the detector.
-     * @method setBodies
-     * @param {detector} detector
+     * Prepares for solving by constraint warming.
+     * @private
+     * @method preSolveAll
      * @param {body[]} bodies
      */
-    Detector.setBodies = function(detector, bodies) {
-        detector.bodies = bodies.slice(0);
+    Constraint.preSolveAll = function(bodies) {
+        for (var i = 0; i < bodies.length; i += 1) {
+            var body = bodies[i],
+                impulse = body.constraintImpulse;
+
+            if (body.isStatic || (impulse.x === 0 && impulse.y === 0 && impulse.angle === 0)) {
+                continue;
+            }
+
+            body.position.x += impulse.x;
+            body.position.y += impulse.y;
+            body.angle += impulse.angle;
+        }
     };
 
     /**
-     * Clears the detector including its list of bodies.
-     * @method clear
-     * @param {detector} detector
+     * Solves all constraints in a list of collisions.
+     * @private
+     * @method solveAll
+     * @param {constraint[]} constraints
+     * @param {number} timeScale
      */
-    Detector.clear = function(detector) {
-        detector.bodies = [];
-    };
+    Constraint.solveAll = function(constraints, timeScale) {
+        // Solve fixed constraints first.
+        for (var i = 0; i < constraints.length; i += 1) {
+            var constraint = constraints[i],
+                fixedA = !constraint.bodyA || (constraint.bodyA && constraint.bodyA.isStatic),
+                fixedB = !constraint.bodyB || (constraint.bodyB && constraint.bodyB.isStatic);
 
-    /**
-     * Efficiently finds all collisions among all the bodies in `detector.bodies` using a broadphase algorithm.
-     * 
-     * _Note:_ The specific ordering of collisions returned is not guaranteed between releases and may change for performance reasons.
-     * If a specific ordering is required then apply a sort to the resulting array.
-     * @method collisions
-     * @param {detector} detector
-     * @return {collision[]} collisions
-     */
-    Detector.collisions = function(detector) {
-        var collisions = [],
-            pairs = detector.pairs,
-            bodies = detector.bodies,
-            bodiesLength = bodies.length,
-            canCollide = Detector.canCollide,
-            collides = Collision.collides,
-            i,
-            j;
-
-        bodies.sort(Detector._compareBoundsX);
-
-        for (i = 0; i < bodiesLength; i++) {
-            var bodyA = bodies[i],
-                boundsA = bodyA.bounds,
-                boundXMax = bodyA.bounds.max.x,
-                boundYMax = bodyA.bounds.max.y,
-                boundYMin = bodyA.bounds.min.y,
-                bodyAStatic = bodyA.isStatic || bodyA.isSleeping,
-                partsALength = bodyA.parts.length,
-                partsASingle = partsALength === 1;
-
-            for (j = i + 1; j < bodiesLength; j++) {
-                var bodyB = bodies[j],
-                    boundsB = bodyB.bounds;
-
-                if (boundsB.min.x > boundXMax) {
-                    break;
-                }
-
-                if (boundYMax < boundsB.min.y || boundYMin > boundsB.max.y) {
-                    continue;
-                }
-
-                if (bodyAStatic && (bodyB.isStatic || bodyB.isSleeping)) {
-                    continue;
-                }
-
-                if (!canCollide(bodyA.collisionFilter, bodyB.collisionFilter)) {
-                    continue;
-                }
-
-                var partsBLength = bodyB.parts.length;
-
-                if (partsASingle && partsBLength === 1) {
-                    var collision = collides(bodyA, bodyB, pairs);
-
-                    if (collision) {
-                        collisions.push(collision);
-                    }
-                } else {
-                    var partsAStart = partsALength > 1 ? 1 : 0,
-                        partsBStart = partsBLength > 1 ? 1 : 0;
-                    
-                    for (var k = partsAStart; k < partsALength; k++) {
-                        var partA = bodyA.parts[k],
-                            boundsA = partA.bounds;
-
-                        for (var z = partsBStart; z < partsBLength; z++) {
-                            var partB = bodyB.parts[z],
-                                boundsB = partB.bounds;
-
-                            if (boundsA.min.x > boundsB.max.x || boundsA.max.x < boundsB.min.x
-                                || boundsA.max.y < boundsB.min.y || boundsA.min.y > boundsB.max.y) {
-                                continue;
-                            }
-
-                            var collision = collides(partA, partB, pairs);
-
-                            if (collision) {
-                                collisions.push(collision);
-                            }
-                        }
-                    }
-                }
+            if (fixedA || fixedB) {
+                Constraint.solve(constraints[i], timeScale);
             }
         }
 
-        return collisions;
+        // Solve free constraints last.
+        for (i = 0; i < constraints.length; i += 1) {
+            constraint = constraints[i];
+            fixedA = !constraint.bodyA || (constraint.bodyA && constraint.bodyA.isStatic);
+            fixedB = !constraint.bodyB || (constraint.bodyB && constraint.bodyB.isStatic);
+
+            if (!fixedA && !fixedB) {
+                Constraint.solve(constraints[i], timeScale);
+            }
+        }
     };
 
     /**
-     * Returns `true` if both supplied collision filters will allow a collision to occur.
-     * See `body.collisionFilter` for more information.
-     * @method canCollide
-     * @param {} filterA
-     * @param {} filterB
-     * @return {bool} `true` if collision can occur
-     */
-    Detector.canCollide = function(filterA, filterB) {
-        if (filterA.group === filterB.group && filterA.group !== 0)
-            return filterA.group > 0;
-
-        return (filterA.mask & filterB.category) !== 0 && (filterB.mask & filterA.category) !== 0;
-    };
-
-    /**
-     * The comparison function used in the broadphase algorithm.
-     * Returns the signed delta of the bodies bounds on the x-axis.
+     * Solves a distance constraint with Gauss-Siedel method.
      * @private
-     * @method _sortCompare
-     * @param {body} bodyA
-     * @param {body} bodyB
-     * @return {number} The signed delta used for sorting
+     * @method solve
+     * @param {constraint} constraint
+     * @param {number} timeScale
      */
-    Detector._compareBoundsX = function(bodyA, bodyB) {
-        return bodyA.bounds.min.x - bodyB.bounds.min.x;
+    Constraint.solve = function(constraint, timeScale) {
+        var bodyA = constraint.bodyA,
+            bodyB = constraint.bodyB,
+            pointA = constraint.pointA,
+            pointB = constraint.pointB;
+
+        if (!bodyA && !bodyB)
+            return;
+
+        // update reference angle
+        if (bodyA && !bodyA.isStatic) {
+            Vector.rotate(pointA, bodyA.angle - constraint.angleA, pointA);
+            constraint.angleA = bodyA.angle;
+        }
+        
+        // update reference angle
+        if (bodyB && !bodyB.isStatic) {
+            Vector.rotate(pointB, bodyB.angle - constraint.angleB, pointB);
+            constraint.angleB = bodyB.angle;
+        }
+
+        var pointAWorld = pointA,
+            pointBWorld = pointB;
+
+        if (bodyA) pointAWorld = Vector.add(bodyA.position, pointA);
+        if (bodyB) pointBWorld = Vector.add(bodyB.position, pointB);
+
+        if (!pointAWorld || !pointBWorld)
+            return;
+
+        var delta = Vector.sub(pointAWorld, pointBWorld),
+            currentLength = Vector.magnitude(delta);
+
+        // prevent singularity
+        if (currentLength < Constraint._minLength) {
+            currentLength = Constraint._minLength;
+        }
+
+        // solve distance constraint with Gauss-Siedel method
+        var difference = (currentLength - constraint.length) / currentLength,
+            stiffness = constraint.stiffness < 1 ? constraint.stiffness * timeScale : constraint.stiffness,
+            force = Vector.mult(delta, difference * stiffness),
+            massTotal = (bodyA ? bodyA.inverseMass : 0) + (bodyB ? bodyB.inverseMass : 0),
+            inertiaTotal = (bodyA ? bodyA.inverseInertia : 0) + (bodyB ? bodyB.inverseInertia : 0),
+            resistanceTotal = massTotal + inertiaTotal,
+            torque,
+            share,
+            normal,
+            normalVelocity,
+            relativeVelocity;
+
+        if (constraint.damping) {
+            var zero = Vector.create();
+            normal = Vector.div(delta, currentLength);
+
+            relativeVelocity = Vector.sub(
+                bodyB && Vector.sub(bodyB.position, bodyB.positionPrev) || zero,
+                bodyA && Vector.sub(bodyA.position, bodyA.positionPrev) || zero
+            );
+
+            normalVelocity = Vector.dot(normal, relativeVelocity);
+        }
+
+        if (bodyA && !bodyA.isStatic) {
+            share = bodyA.inverseMass / massTotal;
+
+            // keep track of applied impulses for post solving
+            bodyA.constraintImpulse.x -= force.x * share;
+            bodyA.constraintImpulse.y -= force.y * share;
+
+            // apply forces
+            bodyA.position.x -= force.x * share;
+            bodyA.position.y -= force.y * share;
+
+            // apply damping
+            if (constraint.damping) {
+                bodyA.positionPrev.x -= constraint.damping * normal.x * normalVelocity * share;
+                bodyA.positionPrev.y -= constraint.damping * normal.y * normalVelocity * share;
+            }
+
+            // apply torque
+            torque = (Vector.cross(pointA, force) / resistanceTotal) * Constraint._torqueDampen * bodyA.inverseInertia * (1 - constraint.angularStiffness);
+            bodyA.constraintImpulse.angle -= torque;
+            bodyA.angle -= torque;
+        }
+
+        if (bodyB && !bodyB.isStatic) {
+            share = bodyB.inverseMass / massTotal;
+
+            // keep track of applied impulses for post solving
+            bodyB.constraintImpulse.x += force.x * share;
+            bodyB.constraintImpulse.y += force.y * share;
+            
+            // apply forces
+            bodyB.position.x += force.x * share;
+            bodyB.position.y += force.y * share;
+
+            // apply damping
+            if (constraint.damping) {
+                bodyB.positionPrev.x += constraint.damping * normal.x * normalVelocity * share;
+                bodyB.positionPrev.y += constraint.damping * normal.y * normalVelocity * share;
+            }
+
+            // apply torque
+            torque = (Vector.cross(pointB, force) / resistanceTotal) * Constraint._torqueDampen * bodyB.inverseInertia * (1 - constraint.angularStiffness);
+            bodyB.constraintImpulse.angle += torque;
+            bodyB.angle += torque;
+        }
+
+    };
+
+    /**
+     * Performs body updates required after solving constraints.
+     * @private
+     * @method postSolveAll
+     * @param {body[]} bodies
+     */
+    Constraint.postSolveAll = function(bodies) {
+        for (var i = 0; i < bodies.length; i++) {
+            var body = bodies[i],
+                impulse = body.constraintImpulse;
+
+            if (body.isStatic || (impulse.x === 0 && impulse.y === 0 && impulse.angle === 0)) {
+                continue;
+            }
+
+            Sleeping.set(body, false);
+
+            // update geometry and reset
+            for (var j = 0; j < body.parts.length; j++) {
+                var part = body.parts[j];
+                
+                Vertices.translate(part.vertices, impulse);
+
+                if (j > 0) {
+                    part.position.x += impulse.x;
+                    part.position.y += impulse.y;
+                }
+
+                if (impulse.angle !== 0) {
+                    Vertices.rotate(part.vertices, impulse.angle, body.position);
+                    Axes.rotate(part.axes, impulse.angle);
+                    if (j > 0) {
+                        Vector.rotateAbout(part.position, impulse.angle, body.position, part.position);
+                    }
+                }
+
+                Bounds.update(part.bounds, part.vertices, body.velocity);
+            }
+
+            // dampen the cached impulse for warming next step
+            impulse.angle *= Constraint._warming;
+            impulse.x *= Constraint._warming;
+            impulse.y *= Constraint._warming;
+        }
+    };
+
+    /**
+     * Returns the world-space position of `constraint.pointA`, accounting for `constraint.bodyA`.
+     * @method pointAWorld
+     * @param {constraint} constraint
+     * @returns {vector} the world-space position
+     */
+    Constraint.pointAWorld = function(constraint) {
+        return {
+            x: (constraint.bodyA ? constraint.bodyA.position.x : 0) 
+                + (constraint.pointA ? constraint.pointA.x : 0),
+            y: (constraint.bodyA ? constraint.bodyA.position.y : 0) 
+                + (constraint.pointA ? constraint.pointA.y : 0)
+        };
+    };
+
+    /**
+     * Returns the world-space position of `constraint.pointB`, accounting for `constraint.bodyB`.
+     * @method pointBWorld
+     * @param {constraint} constraint
+     * @returns {vector} the world-space position
+     */
+    Constraint.pointBWorld = function(constraint) {
+        return {
+            x: (constraint.bodyB ? constraint.bodyB.position.x : 0) 
+                + (constraint.pointB ? constraint.pointB.x : 0),
+            y: (constraint.bodyB ? constraint.bodyB.position.y : 0) 
+                + (constraint.pointB ? constraint.pointB.y : 0)
+        };
     };
 
     /*
@@ -5645,26 +4881,103 @@ var Collision = __webpack_require__(8);
     */
 
     /**
-     * The array of `Matter.Body` between which the detector finds collisions.
-     * 
-     * _Note:_ The order of bodies in this array _is not fixed_ and will be continually managed by the detector.
-     * @property bodies
-     * @type body[]
-     * @default []
+     * An integer `Number` uniquely identifying number generated in `Composite.create` by `Common.nextId`.
+     *
+     * @property id
+     * @type number
      */
 
     /**
-     * Optional. A `Matter.Pairs` object from which previous collision objects may be reused. Intended for internal `Matter.Engine` usage.
-     * @property pairs
-     * @type {pairs|null}
+     * A `String` denoting the type of object.
+     *
+     * @property type
+     * @type string
+     * @default "constraint"
+     * @readOnly
+     */
+
+    /**
+     * An arbitrary `String` name to help the user identify and manage bodies.
+     *
+     * @property label
+     * @type string
+     * @default "Constraint"
+     */
+
+    /**
+     * The first possible `Body` that this constraint is attached to.
+     *
+     * @property bodyA
+     * @type body
      * @default null
+     */
+
+    /**
+     * The second possible `Body` that this constraint is attached to.
+     *
+     * @property bodyB
+     * @type body
+     * @default null
+     */
+
+    /**
+     * A `Vector` that specifies the offset of the constraint from center of the `constraint.bodyA` if defined, otherwise a world-space position.
+     *
+     * @property pointA
+     * @type vector
+     * @default { x: 0, y: 0 }
+     */
+
+    /**
+     * A `Vector` that specifies the offset of the constraint from center of the `constraint.bodyB` if defined, otherwise a world-space position.
+     *
+     * @property pointB
+     * @type vector
+     * @default { x: 0, y: 0 }
+     */
+
+    /**
+     * A `Number` that specifies the stiffness of the constraint, i.e. the rate at which it returns to its resting `constraint.length`.
+     * A value of `1` means the constraint should be very stiff.
+     * A value of `0.2` means the constraint acts like a soft spring.
+     *
+     * @property stiffness
+     * @type number
+     * @default 1
+     */
+
+    /**
+     * A `Number` that specifies the damping of the constraint, 
+     * i.e. the amount of resistance applied to each body based on their velocities to limit the amount of oscillation.
+     * Damping will only be apparent when the constraint also has a very low `stiffness`.
+     * A value of `0.1` means the constraint will apply heavy damping, resulting in little to no oscillation.
+     * A value of `0` means the constraint will apply no damping.
+     *
+     * @property damping
+     * @type number
+     * @default 0
+     */
+
+    /**
+     * A `Number` that specifies the target resting length of the constraint. 
+     * It is calculated automatically in `Constraint.create` from initial positions of the `constraint.bodyA` and `constraint.bodyB`.
+     *
+     * @property length
+     * @type number
+     */
+
+    /**
+     * An object reserved for storing plugin-specific properties.
+     *
+     * @property plugin
+     * @type {}
      */
 
 })();
 
 
 /***/ }),
-/* 15 */
+/* 13 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -6021,1843 +5334,7 @@ var Common = __webpack_require__(0);
 
 
 /***/ }),
-/* 16 */
-/***/ (function(module, exports, __webpack_require__) {
-
-/**
-* The `Matter.Render` module is a simple canvas based renderer for visualising instances of `Matter.Engine`.
-* It is intended for development and debugging purposes, but may also be suitable for simple games.
-* It includes a number of drawing options including wireframe, vector with support for sprites and viewports.
-*
-* @class Render
-*/
-
-var Render = {};
-
-module.exports = Render;
-
-var Common = __webpack_require__(0);
-var Composite = __webpack_require__(5);
-var Bounds = __webpack_require__(1);
-var Events = __webpack_require__(4);
-var Vector = __webpack_require__(2);
-var Mouse = __webpack_require__(13);
-
-(function() {
-
-    var _requestAnimationFrame,
-        _cancelAnimationFrame;
-
-    if (typeof window !== 'undefined') {
-        _requestAnimationFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame
-                                      || window.mozRequestAnimationFrame || window.msRequestAnimationFrame
-                                      || function(callback){ window.setTimeout(function() { callback(Common.now()); }, 1000 / 60); };
-
-        _cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame
-                                      || window.webkitCancelAnimationFrame || window.msCancelAnimationFrame;
-    }
-
-    Render._goodFps = 30;
-    Render._goodDelta = 1000 / 60;
-
-    /**
-     * Creates a new renderer. The options parameter is an object that specifies any properties you wish to override the defaults.
-     * All properties have default values, and many are pre-calculated automatically based on other properties.
-     * See the properties section below for detailed information on what you can pass via the `options` object.
-     * @method create
-     * @param {object} [options]
-     * @return {render} A new renderer
-     */
-    Render.create = function(options) {
-        var defaults = {
-            controller: Render,
-            engine: null,
-            element: null,
-            canvas: null,
-            mouse: null,
-            frameRequestId: null,
-            timing: {
-                historySize: 60,
-                delta: 0,
-                deltaHistory: [],
-                lastTime: 0,
-                lastTimestamp: 0,
-                lastElapsed: 0,
-                timestampElapsed: 0,
-                timestampElapsedHistory: [],
-                engineDeltaHistory: [],
-                engineElapsedHistory: [],
-                elapsedHistory: []
-            },
-            options: {
-                width: 800,
-                height: 600,
-                pixelRatio: 1,
-                background: '#14151f',
-                wireframeBackground: '#14151f',
-                hasBounds: !!options.bounds,
-                enabled: true,
-                wireframes: true,
-                showSleeping: true,
-                showDebug: false,
-                showStats: false,
-                showPerformance: false,
-                showBounds: false,
-                showVelocity: false,
-                showCollisions: false,
-                showSeparations: false,
-                showAxes: false,
-                showPositions: false,
-                showAngleIndicator: false,
-                showIds: false,
-                showVertexNumbers: false,
-                showConvexHulls: false,
-                showInternalEdges: false,
-                showMousePosition: false
-            }
-        };
-
-        var render = Common.extend(defaults, options);
-
-        if (render.canvas) {
-            render.canvas.width = render.options.width || render.canvas.width;
-            render.canvas.height = render.options.height || render.canvas.height;
-        }
-
-        render.mouse = options.mouse;
-        render.engine = options.engine;
-        render.canvas = render.canvas || _createCanvas(render.options.width, render.options.height);
-        render.context = render.canvas.getContext('2d');
-        render.textures = {};
-
-        render.bounds = render.bounds || {
-            min: {
-                x: 0,
-                y: 0
-            },
-            max: {
-                x: render.canvas.width,
-                y: render.canvas.height
-            }
-        };
-
-        // for temporary back compatibility only
-        render.options.showBroadphase = false;
-
-        if (render.options.pixelRatio !== 1) {
-            Render.setPixelRatio(render, render.options.pixelRatio);
-        }
-
-        if (Common.isElement(render.element)) {
-            render.element.appendChild(render.canvas);
-        } else if (!render.canvas.parentNode) {
-            Common.log('Render.create: options.element was undefined, render.canvas was created but not appended', 'warn');
-        }
-
-        return render;
-    };
-
-    /**
-     * Continuously updates the render canvas on the `requestAnimationFrame` event.
-     * @method run
-     * @param {render} render
-     */
-    Render.run = function(render) {
-        (function loop(time){
-            render.frameRequestId = _requestAnimationFrame(loop);
-            
-            _updateTiming(render, time);
-
-            Render.world(render, time);
-
-            if (render.options.showStats || render.options.showDebug) {
-                Render.stats(render, render.context, time);
-            }
-
-            if (render.options.showPerformance || render.options.showDebug) {
-                Render.performance(render, render.context, time);
-            }
-        })();
-    };
-
-    /**
-     * Ends execution of `Render.run` on the given `render`, by canceling the animation frame request event loop.
-     * @method stop
-     * @param {render} render
-     */
-    Render.stop = function(render) {
-        _cancelAnimationFrame(render.frameRequestId);
-    };
-
-    /**
-     * Sets the pixel ratio of the renderer and updates the canvas.
-     * To automatically detect the correct ratio, pass the string `'auto'` for `pixelRatio`.
-     * @method setPixelRatio
-     * @param {render} render
-     * @param {number} pixelRatio
-     */
-    Render.setPixelRatio = function(render, pixelRatio) {
-        var options = render.options,
-            canvas = render.canvas;
-
-        if (pixelRatio === 'auto') {
-            pixelRatio = _getPixelRatio(canvas);
-        }
-
-        options.pixelRatio = pixelRatio;
-        canvas.setAttribute('data-pixel-ratio', pixelRatio);
-        canvas.width = options.width * pixelRatio;
-        canvas.height = options.height * pixelRatio;
-        canvas.style.width = options.width + 'px';
-        canvas.style.height = options.height + 'px';
-    };
-
-    /**
-     * Positions and sizes the viewport around the given object bounds.
-     * Objects must have at least one of the following properties:
-     * - `object.bounds`
-     * - `object.position`
-     * - `object.min` and `object.max`
-     * - `object.x` and `object.y`
-     * @method lookAt
-     * @param {render} render
-     * @param {object[]} objects
-     * @param {vector} [padding]
-     * @param {bool} [center=true]
-     */
-    Render.lookAt = function(render, objects, padding, center) {
-        center = typeof center !== 'undefined' ? center : true;
-        objects = Common.isArray(objects) ? objects : [objects];
-        padding = padding || {
-            x: 0,
-            y: 0
-        };
-
-        // find bounds of all objects
-        var bounds = {
-            min: { x: Infinity, y: Infinity },
-            max: { x: -Infinity, y: -Infinity }
-        };
-
-        for (var i = 0; i < objects.length; i += 1) {
-            var object = objects[i],
-                min = object.bounds ? object.bounds.min : (object.min || object.position || object),
-                max = object.bounds ? object.bounds.max : (object.max || object.position || object);
-
-            if (min && max) {
-                if (min.x < bounds.min.x)
-                    bounds.min.x = min.x;
-
-                if (max.x > bounds.max.x)
-                    bounds.max.x = max.x;
-
-                if (min.y < bounds.min.y)
-                    bounds.min.y = min.y;
-
-                if (max.y > bounds.max.y)
-                    bounds.max.y = max.y;
-            }
-        }
-
-        // find ratios
-        var width = (bounds.max.x - bounds.min.x) + 2 * padding.x,
-            height = (bounds.max.y - bounds.min.y) + 2 * padding.y,
-            viewHeight = render.canvas.height,
-            viewWidth = render.canvas.width,
-            outerRatio = viewWidth / viewHeight,
-            innerRatio = width / height,
-            scaleX = 1,
-            scaleY = 1;
-
-        // find scale factor
-        if (innerRatio > outerRatio) {
-            scaleY = innerRatio / outerRatio;
-        } else {
-            scaleX = outerRatio / innerRatio;
-        }
-
-        // enable bounds
-        render.options.hasBounds = true;
-
-        // position and size
-        render.bounds.min.x = bounds.min.x;
-        render.bounds.max.x = bounds.min.x + width * scaleX;
-        render.bounds.min.y = bounds.min.y;
-        render.bounds.max.y = bounds.min.y + height * scaleY;
-
-        // center
-        if (center) {
-            render.bounds.min.x += width * 0.5 - (width * scaleX) * 0.5;
-            render.bounds.max.x += width * 0.5 - (width * scaleX) * 0.5;
-            render.bounds.min.y += height * 0.5 - (height * scaleY) * 0.5;
-            render.bounds.max.y += height * 0.5 - (height * scaleY) * 0.5;
-        }
-
-        // padding
-        render.bounds.min.x -= padding.x;
-        render.bounds.max.x -= padding.x;
-        render.bounds.min.y -= padding.y;
-        render.bounds.max.y -= padding.y;
-
-        // update mouse
-        if (render.mouse) {
-            Mouse.setScale(render.mouse, {
-                x: (render.bounds.max.x - render.bounds.min.x) / render.canvas.width,
-                y: (render.bounds.max.y - render.bounds.min.y) / render.canvas.height
-            });
-
-            Mouse.setOffset(render.mouse, render.bounds.min);
-        }
-    };
-
-    /**
-     * Applies viewport transforms based on `render.bounds` to a render context.
-     * @method startViewTransform
-     * @param {render} render
-     */
-    Render.startViewTransform = function(render) {
-        var boundsWidth = render.bounds.max.x - render.bounds.min.x,
-            boundsHeight = render.bounds.max.y - render.bounds.min.y,
-            boundsScaleX = boundsWidth / render.options.width,
-            boundsScaleY = boundsHeight / render.options.height;
-
-        render.context.setTransform(
-            render.options.pixelRatio / boundsScaleX, 0, 0, 
-            render.options.pixelRatio / boundsScaleY, 0, 0
-        );
-        
-        render.context.translate(-render.bounds.min.x, -render.bounds.min.y);
-    };
-
-    /**
-     * Resets all transforms on the render context.
-     * @method endViewTransform
-     * @param {render} render
-     */
-    Render.endViewTransform = function(render) {
-        render.context.setTransform(render.options.pixelRatio, 0, 0, render.options.pixelRatio, 0, 0);
-    };
-
-    /**
-     * Renders the given `engine`'s `Matter.World` object.
-     * This is the entry point for all rendering and should be called every time the scene changes.
-     * @method world
-     * @param {render} render
-     */
-    Render.world = function(render, time) {
-        var startTime = Common.now(),
-            engine = render.engine,
-            world = engine.world,
-            canvas = render.canvas,
-            context = render.context,
-            options = render.options,
-            timing = render.timing;
-
-        var allBodies = Composite.allBodies(world),
-            allConstraints = Composite.allConstraints(world),
-            background = options.wireframes ? options.wireframeBackground : options.background,
-            bodies = [],
-            constraints = [],
-            i;
-
-        var event = {
-            timestamp: engine.timing.timestamp
-        };
-
-        Events.trigger(render, 'beforeRender', event);
-
-        // apply background if it has changed
-        if (render.currentBackground !== background)
-            _applyBackground(render, background);
-
-        // clear the canvas with a transparent fill, to allow the canvas background to show
-        context.globalCompositeOperation = 'source-in';
-        context.fillStyle = "transparent";
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        context.globalCompositeOperation = 'source-over';
-
-        // handle bounds
-        if (options.hasBounds) {
-            // filter out bodies that are not in view
-            for (i = 0; i < allBodies.length; i++) {
-                var body = allBodies[i];
-                if (Bounds.overlaps(body.bounds, render.bounds))
-                    bodies.push(body);
-            }
-
-            // filter out constraints that are not in view
-            for (i = 0; i < allConstraints.length; i++) {
-                var constraint = allConstraints[i],
-                    bodyA = constraint.bodyA,
-                    bodyB = constraint.bodyB,
-                    pointAWorld = constraint.pointA,
-                    pointBWorld = constraint.pointB;
-
-                if (bodyA) pointAWorld = Vector.add(bodyA.position, constraint.pointA);
-                if (bodyB) pointBWorld = Vector.add(bodyB.position, constraint.pointB);
-
-                if (!pointAWorld || !pointBWorld)
-                    continue;
-
-                if (Bounds.contains(render.bounds, pointAWorld) || Bounds.contains(render.bounds, pointBWorld))
-                    constraints.push(constraint);
-            }
-
-            // transform the view
-            Render.startViewTransform(render);
-
-            // update mouse
-            if (render.mouse) {
-                Mouse.setScale(render.mouse, {
-                    x: (render.bounds.max.x - render.bounds.min.x) / render.options.width,
-                    y: (render.bounds.max.y - render.bounds.min.y) / render.options.height
-                });
-
-                Mouse.setOffset(render.mouse, render.bounds.min);
-            }
-        } else {
-            constraints = allConstraints;
-            bodies = allBodies;
-
-            if (render.options.pixelRatio !== 1) {
-                render.context.setTransform(render.options.pixelRatio, 0, 0, render.options.pixelRatio, 0, 0);
-            }
-        }
-
-        if (!options.wireframes || (engine.enableSleeping && options.showSleeping)) {
-            // fully featured rendering of bodies
-            Render.bodies(render, bodies, context);
-        } else {
-            if (options.showConvexHulls)
-                Render.bodyConvexHulls(render, bodies, context);
-
-            // optimised method for wireframes only
-            Render.bodyWireframes(render, bodies, context);
-        }
-
-        if (options.showBounds)
-            Render.bodyBounds(render, bodies, context);
-
-        if (options.showAxes || options.showAngleIndicator)
-            Render.bodyAxes(render, bodies, context);
-
-        if (options.showPositions)
-            Render.bodyPositions(render, bodies, context);
-
-        if (options.showVelocity)
-            Render.bodyVelocity(render, bodies, context);
-
-        if (options.showIds)
-            Render.bodyIds(render, bodies, context);
-
-        if (options.showSeparations)
-            Render.separations(render, engine.pairs.list, context);
-
-        if (options.showCollisions)
-            Render.collisions(render, engine.pairs.list, context);
-
-        if (options.showVertexNumbers)
-            Render.vertexNumbers(render, bodies, context);
-
-        if (options.showMousePosition)
-            Render.mousePosition(render, render.mouse, context);
-
-        Render.constraints(constraints, context);
-
-        if (options.hasBounds) {
-            // revert view transforms
-            Render.endViewTransform(render);
-        }
-
-        Events.trigger(render, 'afterRender', event);
-
-        // log the time elapsed computing this update
-        timing.lastElapsed = Common.now() - startTime;
-    };
-
-    /**
-     * Renders statistics about the engine and world useful for debugging.
-     * @private
-     * @method stats
-     * @param {render} render
-     * @param {RenderingContext} context
-     * @param {Number} time
-     */
-    Render.stats = function(render, context, time) {
-        var engine = render.engine,
-            world = engine.world,
-            bodies = Composite.allBodies(world),
-            parts = 0,
-            width = 55,
-            height = 44,
-            x = 0,
-            y = 0;
-        
-        // count parts
-        for (var i = 0; i < bodies.length; i += 1) {
-            parts += bodies[i].parts.length;
-        }
-
-        // sections
-        var sections = {
-            'Part': parts,
-            'Body': bodies.length,
-            'Cons': Composite.allConstraints(world).length,
-            'Comp': Composite.allComposites(world).length,
-            'Pair': engine.pairs.list.length
-        };
-
-        // background
-        context.fillStyle = '#0e0f19';
-        context.fillRect(x, y, width * 5.5, height);
-
-        context.font = '12px Arial';
-        context.textBaseline = 'top';
-        context.textAlign = 'right';
-
-        // sections
-        for (var key in sections) {
-            var section = sections[key];
-            // label
-            context.fillStyle = '#aaa';
-            context.fillText(key, x + width, y + 8);
-
-            // value
-            context.fillStyle = '#eee';
-            context.fillText(section, x + width, y + 26);
-
-            x += width;
-        }
-    };
-
-    /**
-     * Renders engine and render performance information.
-     * @private
-     * @method performance
-     * @param {render} render
-     * @param {RenderingContext} context
-     */
-    Render.performance = function(render, context) {
-        var engine = render.engine,
-            timing = render.timing,
-            deltaHistory = timing.deltaHistory,
-            elapsedHistory = timing.elapsedHistory,
-            timestampElapsedHistory = timing.timestampElapsedHistory,
-            engineDeltaHistory = timing.engineDeltaHistory,
-            engineElapsedHistory = timing.engineElapsedHistory,
-            lastEngineDelta = engine.timing.lastDelta;
-        
-        var deltaMean = _mean(deltaHistory),
-            elapsedMean = _mean(elapsedHistory),
-            engineDeltaMean = _mean(engineDeltaHistory),
-            engineElapsedMean = _mean(engineElapsedHistory),
-            timestampElapsedMean = _mean(timestampElapsedHistory),
-            rateMean = (timestampElapsedMean / deltaMean) || 0,
-            fps = (1000 / deltaMean) || 0;
-
-        var graphHeight = 4,
-            gap = 12,
-            width = 60,
-            height = 34,
-            x = 10,
-            y = 69;
-
-        // background
-        context.fillStyle = '#0e0f19';
-        context.fillRect(0, 50, gap * 4 + width * 5 + 22, height);
-
-        // show FPS
-        Render.status(
-            context, x, y, width, graphHeight, deltaHistory.length, 
-            Math.round(fps) + ' fps', 
-            fps / Render._goodFps,
-            function(i) { return (deltaHistory[i] / deltaMean) - 1; }
-        );
-
-        // show engine delta
-        Render.status(
-            context, x + gap + width, y, width, graphHeight, engineDeltaHistory.length,
-            lastEngineDelta.toFixed(2) + ' dt', 
-            Render._goodDelta / lastEngineDelta,
-            function(i) { return (engineDeltaHistory[i] / engineDeltaMean) - 1; }
-        );
-
-        // show engine update time
-        Render.status(
-            context, x + (gap + width) * 2, y, width, graphHeight, engineElapsedHistory.length,
-            engineElapsedMean.toFixed(2) + ' ut', 
-            1 - (engineElapsedMean / Render._goodFps),
-            function(i) { return (engineElapsedHistory[i] / engineElapsedMean) - 1; }
-        );
-
-        // show render time
-        Render.status(
-            context, x + (gap + width) * 3, y, width, graphHeight, elapsedHistory.length,
-            elapsedMean.toFixed(2) + ' rt', 
-            1 - (elapsedMean / Render._goodFps),
-            function(i) { return (elapsedHistory[i] / elapsedMean) - 1; }
-        );
-
-        // show effective speed
-        Render.status(
-            context, x + (gap + width) * 4, y, width, graphHeight, timestampElapsedHistory.length, 
-            rateMean.toFixed(2) + ' x', 
-            rateMean * rateMean * rateMean,
-            function(i) { return (((timestampElapsedHistory[i] / deltaHistory[i]) / rateMean) || 0) - 1; }
-        );
-    };
-
-    /**
-     * Renders a label, indicator and a chart.
-     * @private
-     * @method status
-     * @param {RenderingContext} context
-     * @param {number} x
-     * @param {number} y
-     * @param {number} width
-     * @param {number} height
-     * @param {number} count
-     * @param {string} label
-     * @param {string} indicator
-     * @param {function} plotY
-     */
-    Render.status = function(context, x, y, width, height, count, label, indicator, plotY) {
-        // background
-        context.strokeStyle = '#888';
-        context.fillStyle = '#444';
-        context.lineWidth = 1;
-        context.fillRect(x, y + 7, width, 1);
-
-        // chart
-        context.beginPath();
-        context.moveTo(x, y + 7 - height * Common.clamp(0.4 * plotY(0), -2, 2));
-        for (var i = 0; i < width; i += 1) {
-            context.lineTo(x + i, y + 7 - (i < count ? height * Common.clamp(0.4 * plotY(i), -2, 2) : 0));
-        }
-        context.stroke();
-
-        // indicator
-        context.fillStyle = 'hsl(' + Common.clamp(25 + 95 * indicator, 0, 120) + ',100%,60%)';
-        context.fillRect(x, y - 7, 4, 4);
-
-        // label
-        context.font = '12px Arial';
-        context.textBaseline = 'middle';
-        context.textAlign = 'right';
-        context.fillStyle = '#eee';
-        context.fillText(label, x + width, y - 5);
-    };
-
-    /**
-     * Description
-     * @private
-     * @method constraints
-     * @param {constraint[]} constraints
-     * @param {RenderingContext} context
-     */
-    Render.constraints = function(constraints, context) {
-        var c = context;
-
-        for (var i = 0; i < constraints.length; i++) {
-            var constraint = constraints[i];
-
-            if (!constraint.render.visible || !constraint.pointA || !constraint.pointB)
-                continue;
-
-            var bodyA = constraint.bodyA,
-                bodyB = constraint.bodyB,
-                start,
-                end;
-
-            if (bodyA) {
-                start = Vector.add(bodyA.position, constraint.pointA);
-            } else {
-                start = constraint.pointA;
-            }
-
-            if (constraint.render.type === 'pin') {
-                c.beginPath();
-                c.arc(start.x, start.y, 3, 0, 2 * Math.PI);
-                c.closePath();
-            } else {
-                if (bodyB) {
-                    end = Vector.add(bodyB.position, constraint.pointB);
-                } else {
-                    end = constraint.pointB;
-                }
-
-                c.beginPath();
-                c.moveTo(start.x, start.y);
-
-                if (constraint.render.type === 'spring') {
-                    var delta = Vector.sub(end, start),
-                        normal = Vector.perp(Vector.normalise(delta)),
-                        coils = Math.ceil(Common.clamp(constraint.length / 5, 12, 20)),
-                        offset;
-
-                    for (var j = 1; j < coils; j += 1) {
-                        offset = j % 2 === 0 ? 1 : -1;
-
-                        c.lineTo(
-                            start.x + delta.x * (j / coils) + normal.x * offset * 4,
-                            start.y + delta.y * (j / coils) + normal.y * offset * 4
-                        );
-                    }
-                }
-
-                c.lineTo(end.x, end.y);
-            }
-
-            if (constraint.render.lineWidth) {
-                c.lineWidth = constraint.render.lineWidth;
-                c.strokeStyle = constraint.render.strokeStyle;
-                c.stroke();
-            }
-
-            if (constraint.render.anchors) {
-                c.fillStyle = constraint.render.strokeStyle;
-                c.beginPath();
-                c.arc(start.x, start.y, 3, 0, 2 * Math.PI);
-                c.arc(end.x, end.y, 3, 0, 2 * Math.PI);
-                c.closePath();
-                c.fill();
-            }
-        }
-    };
-
-    /**
-     * Description
-     * @private
-     * @method bodies
-     * @param {render} render
-     * @param {body[]} bodies
-     * @param {RenderingContext} context
-     */
-    Render.bodies = function(render, bodies, context) {
-        var c = context,
-            engine = render.engine,
-            options = render.options,
-            showInternalEdges = options.showInternalEdges || !options.wireframes,
-            body,
-            part,
-            i,
-            k;
-
-        for (i = 0; i < bodies.length; i++) {
-            body = bodies[i];
-
-            if (!body.render.visible)
-                continue;
-
-            // handle compound parts
-            for (k = body.parts.length > 1 ? 1 : 0; k < body.parts.length; k++) {
-                part = body.parts[k];
-
-                if (!part.render.visible)
-                    continue;
-
-                if (options.showSleeping && body.isSleeping) {
-                    c.globalAlpha = 0.5 * part.render.opacity;
-                } else if (part.render.opacity !== 1) {
-                    c.globalAlpha = part.render.opacity;
-                }
-
-                if (part.render.sprite && part.render.sprite.texture && !options.wireframes) {
-                    // part sprite
-                    var sprite = part.render.sprite,
-                        texture = _getTexture(render, sprite.texture);
-
-                    c.translate(part.position.x, part.position.y);
-                    c.rotate(part.angle);
-
-                    c.drawImage(
-                        texture,
-                        texture.width * -sprite.xOffset * sprite.xScale,
-                        texture.height * -sprite.yOffset * sprite.yScale,
-                        texture.width * sprite.xScale,
-                        texture.height * sprite.yScale
-                    );
-
-                    // revert translation, hopefully faster than save / restore
-                    c.rotate(-part.angle);
-                    c.translate(-part.position.x, -part.position.y);
-                } else {
-                    // part polygon
-                    if (part.circleRadius) {
-                        c.beginPath();
-                        c.arc(part.position.x, part.position.y, part.circleRadius, 0, 2 * Math.PI);
-                    } else {
-                        c.beginPath();
-                        c.moveTo(part.vertices[0].x, part.vertices[0].y);
-
-                        for (var j = 1; j < part.vertices.length; j++) {
-                            if (!part.vertices[j - 1].isInternal || showInternalEdges) {
-                                c.lineTo(part.vertices[j].x, part.vertices[j].y);
-                            } else {
-                                c.moveTo(part.vertices[j].x, part.vertices[j].y);
-                            }
-
-                            if (part.vertices[j].isInternal && !showInternalEdges) {
-                                c.moveTo(part.vertices[(j + 1) % part.vertices.length].x, part.vertices[(j + 1) % part.vertices.length].y);
-                            }
-                        }
-
-                        c.lineTo(part.vertices[0].x, part.vertices[0].y);
-                        c.closePath();
-                    }
-
-                    if (!options.wireframes) {
-                        c.fillStyle = part.render.fillStyle;
-
-                        if (part.render.lineWidth) {
-                            c.lineWidth = part.render.lineWidth;
-                            c.strokeStyle = part.render.strokeStyle;
-                            c.stroke();
-                        }
-
-                        c.fill();
-                    } else {
-                        c.lineWidth = 1;
-                        c.strokeStyle = '#bbb';
-                        c.stroke();
-                    }
-                }
-
-                c.globalAlpha = 1;
-            }
-        }
-    };
-
-    /**
-     * Optimised method for drawing body wireframes in one pass
-     * @private
-     * @method bodyWireframes
-     * @param {render} render
-     * @param {body[]} bodies
-     * @param {RenderingContext} context
-     */
-    Render.bodyWireframes = function(render, bodies, context) {
-        var c = context,
-            showInternalEdges = render.options.showInternalEdges,
-            body,
-            part,
-            i,
-            j,
-            k;
-
-        c.beginPath();
-
-        // render all bodies
-        for (i = 0; i < bodies.length; i++) {
-            body = bodies[i];
-
-            if (!body.render.visible)
-                continue;
-
-            // handle compound parts
-            for (k = body.parts.length > 1 ? 1 : 0; k < body.parts.length; k++) {
-                part = body.parts[k];
-
-                c.moveTo(part.vertices[0].x, part.vertices[0].y);
-
-                for (j = 1; j < part.vertices.length; j++) {
-                    if (!part.vertices[j - 1].isInternal || showInternalEdges) {
-                        c.lineTo(part.vertices[j].x, part.vertices[j].y);
-                    } else {
-                        c.moveTo(part.vertices[j].x, part.vertices[j].y);
-                    }
-
-                    if (part.vertices[j].isInternal && !showInternalEdges) {
-                        c.moveTo(part.vertices[(j + 1) % part.vertices.length].x, part.vertices[(j + 1) % part.vertices.length].y);
-                    }
-                }
-
-                c.lineTo(part.vertices[0].x, part.vertices[0].y);
-            }
-        }
-
-        c.lineWidth = 1;
-        c.strokeStyle = '#bbb';
-        c.stroke();
-    };
-
-    /**
-     * Optimised method for drawing body convex hull wireframes in one pass
-     * @private
-     * @method bodyConvexHulls
-     * @param {render} render
-     * @param {body[]} bodies
-     * @param {RenderingContext} context
-     */
-    Render.bodyConvexHulls = function(render, bodies, context) {
-        var c = context,
-            body,
-            part,
-            i,
-            j,
-            k;
-
-        c.beginPath();
-
-        // render convex hulls
-        for (i = 0; i < bodies.length; i++) {
-            body = bodies[i];
-
-            if (!body.render.visible || body.parts.length === 1)
-                continue;
-
-            c.moveTo(body.vertices[0].x, body.vertices[0].y);
-
-            for (j = 1; j < body.vertices.length; j++) {
-                c.lineTo(body.vertices[j].x, body.vertices[j].y);
-            }
-
-            c.lineTo(body.vertices[0].x, body.vertices[0].y);
-        }
-
-        c.lineWidth = 1;
-        c.strokeStyle = 'rgba(255,255,255,0.2)';
-        c.stroke();
-    };
-
-    /**
-     * Renders body vertex numbers.
-     * @private
-     * @method vertexNumbers
-     * @param {render} render
-     * @param {body[]} bodies
-     * @param {RenderingContext} context
-     */
-    Render.vertexNumbers = function(render, bodies, context) {
-        var c = context,
-            i,
-            j,
-            k;
-
-        for (i = 0; i < bodies.length; i++) {
-            var parts = bodies[i].parts;
-            for (k = parts.length > 1 ? 1 : 0; k < parts.length; k++) {
-                var part = parts[k];
-                for (j = 0; j < part.vertices.length; j++) {
-                    c.fillStyle = 'rgba(255,255,255,0.2)';
-                    c.fillText(i + '_' + j, part.position.x + (part.vertices[j].x - part.position.x) * 0.8, part.position.y + (part.vertices[j].y - part.position.y) * 0.8);
-                }
-            }
-        }
-    };
-
-    /**
-     * Renders mouse position.
-     * @private
-     * @method mousePosition
-     * @param {render} render
-     * @param {mouse} mouse
-     * @param {RenderingContext} context
-     */
-    Render.mousePosition = function(render, mouse, context) {
-        var c = context;
-        c.fillStyle = 'rgba(255,255,255,0.8)';
-        c.fillText(mouse.position.x + '  ' + mouse.position.y, mouse.position.x + 5, mouse.position.y - 5);
-    };
-
-    /**
-     * Draws body bounds
-     * @private
-     * @method bodyBounds
-     * @param {render} render
-     * @param {body[]} bodies
-     * @param {RenderingContext} context
-     */
-    Render.bodyBounds = function(render, bodies, context) {
-        var c = context,
-            engine = render.engine,
-            options = render.options;
-
-        c.beginPath();
-
-        for (var i = 0; i < bodies.length; i++) {
-            var body = bodies[i];
-
-            if (body.render.visible) {
-                var parts = bodies[i].parts;
-                for (var j = parts.length > 1 ? 1 : 0; j < parts.length; j++) {
-                    var part = parts[j];
-                    c.rect(part.bounds.min.x, part.bounds.min.y, part.bounds.max.x - part.bounds.min.x, part.bounds.max.y - part.bounds.min.y);
-                }
-            }
-        }
-
-        if (options.wireframes) {
-            c.strokeStyle = 'rgba(255,255,255,0.08)';
-        } else {
-            c.strokeStyle = 'rgba(0,0,0,0.1)';
-        }
-
-        c.lineWidth = 1;
-        c.stroke();
-    };
-
-    /**
-     * Draws body angle indicators and axes
-     * @private
-     * @method bodyAxes
-     * @param {render} render
-     * @param {body[]} bodies
-     * @param {RenderingContext} context
-     */
-    Render.bodyAxes = function(render, bodies, context) {
-        var c = context,
-            engine = render.engine,
-            options = render.options,
-            part,
-            i,
-            j,
-            k;
-
-        c.beginPath();
-
-        for (i = 0; i < bodies.length; i++) {
-            var body = bodies[i],
-                parts = body.parts;
-
-            if (!body.render.visible)
-                continue;
-
-            if (options.showAxes) {
-                // render all axes
-                for (j = parts.length > 1 ? 1 : 0; j < parts.length; j++) {
-                    part = parts[j];
-                    for (k = 0; k < part.axes.length; k++) {
-                        var axis = part.axes[k];
-                        c.moveTo(part.position.x, part.position.y);
-                        c.lineTo(part.position.x + axis.x * 20, part.position.y + axis.y * 20);
-                    }
-                }
-            } else {
-                for (j = parts.length > 1 ? 1 : 0; j < parts.length; j++) {
-                    part = parts[j];
-                    for (k = 0; k < part.axes.length; k++) {
-                        // render a single axis indicator
-                        c.moveTo(part.position.x, part.position.y);
-                        c.lineTo((part.vertices[0].x + part.vertices[part.vertices.length-1].x) / 2,
-                            (part.vertices[0].y + part.vertices[part.vertices.length-1].y) / 2);
-                    }
-                }
-            }
-        }
-
-        if (options.wireframes) {
-            c.strokeStyle = 'indianred';
-            c.lineWidth = 1;
-        } else {
-            c.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-            c.globalCompositeOperation = 'overlay';
-            c.lineWidth = 2;
-        }
-
-        c.stroke();
-        c.globalCompositeOperation = 'source-over';
-    };
-
-    /**
-     * Draws body positions
-     * @private
-     * @method bodyPositions
-     * @param {render} render
-     * @param {body[]} bodies
-     * @param {RenderingContext} context
-     */
-    Render.bodyPositions = function(render, bodies, context) {
-        var c = context,
-            engine = render.engine,
-            options = render.options,
-            body,
-            part,
-            i,
-            k;
-
-        c.beginPath();
-
-        // render current positions
-        for (i = 0; i < bodies.length; i++) {
-            body = bodies[i];
-
-            if (!body.render.visible)
-                continue;
-
-            // handle compound parts
-            for (k = 0; k < body.parts.length; k++) {
-                part = body.parts[k];
-                c.arc(part.position.x, part.position.y, 3, 0, 2 * Math.PI, false);
-                c.closePath();
-            }
-        }
-
-        if (options.wireframes) {
-            c.fillStyle = 'indianred';
-        } else {
-            c.fillStyle = 'rgba(0,0,0,0.5)';
-        }
-        c.fill();
-
-        c.beginPath();
-
-        // render previous positions
-        for (i = 0; i < bodies.length; i++) {
-            body = bodies[i];
-            if (body.render.visible) {
-                c.arc(body.positionPrev.x, body.positionPrev.y, 2, 0, 2 * Math.PI, false);
-                c.closePath();
-            }
-        }
-
-        c.fillStyle = 'rgba(255,165,0,0.8)';
-        c.fill();
-    };
-
-    /**
-     * Draws body velocity
-     * @private
-     * @method bodyVelocity
-     * @param {render} render
-     * @param {body[]} bodies
-     * @param {RenderingContext} context
-     */
-    Render.bodyVelocity = function(render, bodies, context) {
-        var c = context;
-
-        c.beginPath();
-
-        for (var i = 0; i < bodies.length; i++) {
-            var body = bodies[i];
-
-            if (!body.render.visible)
-                continue;
-
-            c.moveTo(body.position.x, body.position.y);
-            c.lineTo(body.position.x + (body.position.x - body.positionPrev.x) * 2, body.position.y + (body.position.y - body.positionPrev.y) * 2);
-        }
-
-        c.lineWidth = 3;
-        c.strokeStyle = 'cornflowerblue';
-        c.stroke();
-    };
-
-    /**
-     * Draws body ids
-     * @private
-     * @method bodyIds
-     * @param {render} render
-     * @param {body[]} bodies
-     * @param {RenderingContext} context
-     */
-    Render.bodyIds = function(render, bodies, context) {
-        var c = context,
-            i,
-            j;
-
-        for (i = 0; i < bodies.length; i++) {
-            if (!bodies[i].render.visible)
-                continue;
-
-            var parts = bodies[i].parts;
-            for (j = parts.length > 1 ? 1 : 0; j < parts.length; j++) {
-                var part = parts[j];
-                c.font = "12px Arial";
-                c.fillStyle = 'rgba(255,255,255,0.5)';
-                c.fillText(part.id, part.position.x + 10, part.position.y - 10);
-            }
-        }
-    };
-
-    /**
-     * Description
-     * @private
-     * @method collisions
-     * @param {render} render
-     * @param {pair[]} pairs
-     * @param {RenderingContext} context
-     */
-    Render.collisions = function(render, pairs, context) {
-        var c = context,
-            options = render.options,
-            pair,
-            collision,
-            corrected,
-            bodyA,
-            bodyB,
-            i,
-            j;
-
-        c.beginPath();
-
-        // render collision positions
-        for (i = 0; i < pairs.length; i++) {
-            pair = pairs[i];
-
-            if (!pair.isActive)
-                continue;
-
-            collision = pair.collision;
-            for (j = 0; j < pair.activeContacts.length; j++) {
-                var contact = pair.activeContacts[j],
-                    vertex = contact.vertex;
-                c.rect(vertex.x - 1.5, vertex.y - 1.5, 3.5, 3.5);
-            }
-        }
-
-        if (options.wireframes) {
-            c.fillStyle = 'rgba(255,255,255,0.7)';
-        } else {
-            c.fillStyle = 'orange';
-        }
-        c.fill();
-
-        c.beginPath();
-
-        // render collision normals
-        for (i = 0; i < pairs.length; i++) {
-            pair = pairs[i];
-
-            if (!pair.isActive)
-                continue;
-
-            collision = pair.collision;
-
-            if (pair.activeContacts.length > 0) {
-                var normalPosX = pair.activeContacts[0].vertex.x,
-                    normalPosY = pair.activeContacts[0].vertex.y;
-
-                if (pair.activeContacts.length === 2) {
-                    normalPosX = (pair.activeContacts[0].vertex.x + pair.activeContacts[1].vertex.x) / 2;
-                    normalPosY = (pair.activeContacts[0].vertex.y + pair.activeContacts[1].vertex.y) / 2;
-                }
-
-                if (collision.bodyB === collision.supports[0].body || collision.bodyA.isStatic === true) {
-                    c.moveTo(normalPosX - collision.normal.x * 8, normalPosY - collision.normal.y * 8);
-                } else {
-                    c.moveTo(normalPosX + collision.normal.x * 8, normalPosY + collision.normal.y * 8);
-                }
-
-                c.lineTo(normalPosX, normalPosY);
-            }
-        }
-
-        if (options.wireframes) {
-            c.strokeStyle = 'rgba(255,165,0,0.7)';
-        } else {
-            c.strokeStyle = 'orange';
-        }
-
-        c.lineWidth = 1;
-        c.stroke();
-    };
-
-    /**
-     * Description
-     * @private
-     * @method separations
-     * @param {render} render
-     * @param {pair[]} pairs
-     * @param {RenderingContext} context
-     */
-    Render.separations = function(render, pairs, context) {
-        var c = context,
-            options = render.options,
-            pair,
-            collision,
-            corrected,
-            bodyA,
-            bodyB,
-            i,
-            j;
-
-        c.beginPath();
-
-        // render separations
-        for (i = 0; i < pairs.length; i++) {
-            pair = pairs[i];
-
-            if (!pair.isActive)
-                continue;
-
-            collision = pair.collision;
-            bodyA = collision.bodyA;
-            bodyB = collision.bodyB;
-
-            var k = 1;
-
-            if (!bodyB.isStatic && !bodyA.isStatic) k = 0.5;
-            if (bodyB.isStatic) k = 0;
-
-            c.moveTo(bodyB.position.x, bodyB.position.y);
-            c.lineTo(bodyB.position.x - collision.penetration.x * k, bodyB.position.y - collision.penetration.y * k);
-
-            k = 1;
-
-            if (!bodyB.isStatic && !bodyA.isStatic) k = 0.5;
-            if (bodyA.isStatic) k = 0;
-
-            c.moveTo(bodyA.position.x, bodyA.position.y);
-            c.lineTo(bodyA.position.x + collision.penetration.x * k, bodyA.position.y + collision.penetration.y * k);
-        }
-
-        if (options.wireframes) {
-            c.strokeStyle = 'rgba(255,165,0,0.5)';
-        } else {
-            c.strokeStyle = 'orange';
-        }
-        c.stroke();
-    };
-
-    /**
-     * Description
-     * @private
-     * @method inspector
-     * @param {inspector} inspector
-     * @param {RenderingContext} context
-     */
-    Render.inspector = function(inspector, context) {
-        var engine = inspector.engine,
-            selected = inspector.selected,
-            render = inspector.render,
-            options = render.options,
-            bounds;
-
-        if (options.hasBounds) {
-            var boundsWidth = render.bounds.max.x - render.bounds.min.x,
-                boundsHeight = render.bounds.max.y - render.bounds.min.y,
-                boundsScaleX = boundsWidth / render.options.width,
-                boundsScaleY = boundsHeight / render.options.height;
-
-            context.scale(1 / boundsScaleX, 1 / boundsScaleY);
-            context.translate(-render.bounds.min.x, -render.bounds.min.y);
-        }
-
-        for (var i = 0; i < selected.length; i++) {
-            var item = selected[i].data;
-
-            context.translate(0.5, 0.5);
-            context.lineWidth = 1;
-            context.strokeStyle = 'rgba(255,165,0,0.9)';
-            context.setLineDash([1,2]);
-
-            switch (item.type) {
-
-            case 'body':
-
-                // render body selections
-                bounds = item.bounds;
-                context.beginPath();
-                context.rect(Math.floor(bounds.min.x - 3), Math.floor(bounds.min.y - 3),
-                    Math.floor(bounds.max.x - bounds.min.x + 6), Math.floor(bounds.max.y - bounds.min.y + 6));
-                context.closePath();
-                context.stroke();
-
-                break;
-
-            case 'constraint':
-
-                // render constraint selections
-                var point = item.pointA;
-                if (item.bodyA)
-                    point = item.pointB;
-                context.beginPath();
-                context.arc(point.x, point.y, 10, 0, 2 * Math.PI);
-                context.closePath();
-                context.stroke();
-
-                break;
-
-            }
-
-            context.setLineDash([]);
-            context.translate(-0.5, -0.5);
-        }
-
-        // render selection region
-        if (inspector.selectStart !== null) {
-            context.translate(0.5, 0.5);
-            context.lineWidth = 1;
-            context.strokeStyle = 'rgba(255,165,0,0.6)';
-            context.fillStyle = 'rgba(255,165,0,0.1)';
-            bounds = inspector.selectBounds;
-            context.beginPath();
-            context.rect(Math.floor(bounds.min.x), Math.floor(bounds.min.y),
-                Math.floor(bounds.max.x - bounds.min.x), Math.floor(bounds.max.y - bounds.min.y));
-            context.closePath();
-            context.stroke();
-            context.fill();
-            context.translate(-0.5, -0.5);
-        }
-
-        if (options.hasBounds)
-            context.setTransform(1, 0, 0, 1, 0, 0);
-    };
-
-    /**
-     * Updates render timing.
-     * @method _updateTiming
-     * @private
-     * @param {render} render
-     * @param {number} time
-     */
-    var _updateTiming = function(render, time) {
-        var engine = render.engine,
-            timing = render.timing,
-            historySize = timing.historySize,
-            timestamp = engine.timing.timestamp;
-
-        timing.delta = time - timing.lastTime || Render._goodDelta;
-        timing.lastTime = time;
-
-        timing.timestampElapsed = timestamp - timing.lastTimestamp || 0;
-        timing.lastTimestamp = timestamp;
-
-        timing.deltaHistory.unshift(timing.delta);
-        timing.deltaHistory.length = Math.min(timing.deltaHistory.length, historySize);
-
-        timing.engineDeltaHistory.unshift(engine.timing.lastDelta);
-        timing.engineDeltaHistory.length = Math.min(timing.engineDeltaHistory.length, historySize);
-
-        timing.timestampElapsedHistory.unshift(timing.timestampElapsed);
-        timing.timestampElapsedHistory.length = Math.min(timing.timestampElapsedHistory.length, historySize);
-
-        timing.engineElapsedHistory.unshift(engine.timing.lastElapsed);
-        timing.engineElapsedHistory.length = Math.min(timing.engineElapsedHistory.length, historySize);
-
-        timing.elapsedHistory.unshift(timing.lastElapsed);
-        timing.elapsedHistory.length = Math.min(timing.elapsedHistory.length, historySize);
-    };
-
-    /**
-     * Returns the mean value of the given numbers.
-     * @method _mean
-     * @private
-     * @param {Number[]} values
-     * @return {Number} the mean of given values
-     */
-    var _mean = function(values) {
-        var result = 0;
-        for (var i = 0; i < values.length; i += 1) {
-            result += values[i];
-        }
-        return (result / values.length) || 0;
-    };
-
-    /**
-     * @method _createCanvas
-     * @private
-     * @param {} width
-     * @param {} height
-     * @return canvas
-     */
-    var _createCanvas = function(width, height) {
-        var canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        canvas.oncontextmenu = function() { return false; };
-        canvas.onselectstart = function() { return false; };
-        return canvas;
-    };
-
-    /**
-     * Gets the pixel ratio of the canvas.
-     * @method _getPixelRatio
-     * @private
-     * @param {HTMLElement} canvas
-     * @return {Number} pixel ratio
-     */
-    var _getPixelRatio = function(canvas) {
-        var context = canvas.getContext('2d'),
-            devicePixelRatio = window.devicePixelRatio || 1,
-            backingStorePixelRatio = context.webkitBackingStorePixelRatio || context.mozBackingStorePixelRatio
-                                      || context.msBackingStorePixelRatio || context.oBackingStorePixelRatio
-                                      || context.backingStorePixelRatio || 1;
-
-        return devicePixelRatio / backingStorePixelRatio;
-    };
-
-    /**
-     * Gets the requested texture (an Image) via its path
-     * @method _getTexture
-     * @private
-     * @param {render} render
-     * @param {string} imagePath
-     * @return {Image} texture
-     */
-    var _getTexture = function(render, imagePath) {
-        var image = render.textures[imagePath];
-
-        if (image)
-            return image;
-
-        image = render.textures[imagePath] = new Image();
-        image.src = imagePath;
-
-        return image;
-    };
-
-    /**
-     * Applies the background to the canvas using CSS.
-     * @method applyBackground
-     * @private
-     * @param {render} render
-     * @param {string} background
-     */
-    var _applyBackground = function(render, background) {
-        var cssBackground = background;
-
-        if (/(jpg|gif|png)$/.test(background))
-            cssBackground = 'url(' + background + ')';
-
-        render.canvas.style.background = cssBackground;
-        render.canvas.style.backgroundSize = "contain";
-        render.currentBackground = background;
-    };
-
-    /*
-    *
-    *  Events Documentation
-    *
-    */
-
-    /**
-    * Fired before rendering
-    *
-    * @event beforeRender
-    * @param {} event An event object
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired after rendering
-    *
-    * @event afterRender
-    * @param {} event An event object
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /*
-    *
-    *  Properties Documentation
-    *
-    */
-
-    /**
-     * A back-reference to the `Matter.Render` module.
-     *
-     * @property controller
-     * @type render
-     */
-
-    /**
-     * A reference to the `Matter.Engine` instance to be used.
-     *
-     * @property engine
-     * @type engine
-     */
-
-    /**
-     * A reference to the element where the canvas is to be inserted (if `render.canvas` has not been specified)
-     *
-     * @property element
-     * @type HTMLElement
-     * @default null
-     */
-
-    /**
-     * The canvas element to render to. If not specified, one will be created if `render.element` has been specified.
-     *
-     * @property canvas
-     * @type HTMLCanvasElement
-     * @default null
-     */
-
-    /**
-     * A `Bounds` object that specifies the drawing view region.
-     * Rendering will be automatically transformed and scaled to fit within the canvas size (`render.options.width` and `render.options.height`).
-     * This allows for creating views that can pan or zoom around the scene.
-     * You must also set `render.options.hasBounds` to `true` to enable bounded rendering.
-     *
-     * @property bounds
-     * @type bounds
-     */
-
-    /**
-     * The 2d rendering context from the `render.canvas` element.
-     *
-     * @property context
-     * @type CanvasRenderingContext2D
-     */
-
-    /**
-     * The sprite texture cache.
-     *
-     * @property textures
-     * @type {}
-     */
-
-    /**
-     * The mouse to render if `render.options.showMousePosition` is enabled.
-     *
-     * @property mouse
-     * @type mouse
-     * @default null
-     */
-
-    /**
-     * The configuration options of the renderer.
-     *
-     * @property options
-     * @type {}
-     */
-
-    /**
-     * The target width in pixels of the `render.canvas` to be created.
-     * See also the `options.pixelRatio` property to change render quality.
-     *
-     * @property options.width
-     * @type number
-     * @default 800
-     */
-
-    /**
-     * The target height in pixels of the `render.canvas` to be created.
-     * See also the `options.pixelRatio` property to change render quality.
-     *
-     * @property options.height
-     * @type number
-     * @default 600
-     */
-
-    /**
-     * The [pixel ratio](https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio) to use when rendering.
-     *
-     * @property options.pixelRatio
-     * @type number
-     * @default 1
-     */
-
-    /**
-     * A CSS background color string to use when `render.options.wireframes` is disabled.
-     * This may be also set to `'transparent'` or equivalent.
-     *
-     * @property options.background
-     * @type string
-     * @default '#14151f'
-     */
-
-    /**
-     * A CSS background color string to use when `render.options.wireframes` is enabled.
-     * This may be also set to `'transparent'` or equivalent.
-     *
-     * @property options.wireframeBackground
-     * @type string
-     * @default '#14151f'
-     */
-
-    /**
-     * A flag that specifies if `render.bounds` should be used when rendering.
-     *
-     * @property options.hasBounds
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable all debug information overlays together.  
-     * This includes and has priority over the values of:
-     *
-     * - `render.options.showStats`
-     * - `render.options.showPerformance`
-     *
-     * @property options.showDebug
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the engine stats info overlay.  
-     * From left to right, the values shown are:
-     *
-     * - body parts total
-     * - body total
-     * - constraints total
-     * - composites total
-     * - collision pairs total
-     *
-     * @property options.showStats
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable performance charts.  
-     * From left to right, the values shown are:
-     *
-     * - average render frequency (e.g. 60 fps)
-     * - exact engine delta time used for last update (e.g. 16.66ms)
-     * - average engine execution duration (e.g. 5.00ms)
-     * - average render execution duration (e.g. 0.40ms)
-     * - average effective play speed (e.g. '1.00x' is 'real-time')
-     *
-     * Each value is recorded over a fixed sample of past frames (60 frames).
-     *
-     * A chart shown below each value indicates the variance from the average over the sample.
-     * The more stable or fixed the value is the flatter the chart will appear.
-     *
-     * @property options.showPerformance
-     * @type boolean
-     * @default false
-     */
-    
-    /**
-     * A flag to enable or disable rendering entirely.
-     *
-     * @property options.enabled
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to toggle wireframe rendering otherwise solid fill rendering is used.
-     *
-     * @property options.wireframes
-     * @type boolean
-     * @default true
-     */
-
-    /**
-     * A flag to enable or disable sleeping bodies indicators.
-     *
-     * @property options.showSleeping
-     * @type boolean
-     * @default true
-     */
-
-    /**
-     * A flag to enable or disable the debug information overlay.
-     *
-     * @property options.showDebug
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the collision broadphase debug overlay.
-     *
-     * @deprecated no longer implemented
-     * @property options.showBroadphase
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the body bounds debug overlay.
-     *
-     * @property options.showBounds
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the body velocity debug overlay.
-     *
-     * @property options.showVelocity
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the body collisions debug overlay.
-     *
-     * @property options.showCollisions
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the collision resolver separations debug overlay.
-     *
-     * @property options.showSeparations
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the body axes debug overlay.
-     *
-     * @property options.showAxes
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the body positions debug overlay.
-     *
-     * @property options.showPositions
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the body angle debug overlay.
-     *
-     * @property options.showAngleIndicator
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the body and part ids debug overlay.
-     *
-     * @property options.showIds
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the body vertex numbers debug overlay.
-     *
-     * @property options.showVertexNumbers
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the body convex hulls debug overlay.
-     *
-     * @property options.showConvexHulls
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the body internal edges debug overlay.
-     *
-     * @property options.showInternalEdges
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A flag to enable or disable the mouse position debug overlay.
-     *
-     * @property options.showMousePosition
-     * @type boolean
-     * @default false
-     */
-
-})();
-
-
-/***/ }),
-/* 17 */
+/* 14 */
 /***/ (function(module, exports) {
 
 /**
@@ -7890,363 +5367,175 @@ module.exports = Contact;
 
 
 /***/ }),
-/* 18 */
+/* 15 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
-* The `Matter.Engine` module contains methods for creating and manipulating engines.
-* An engine is a controller that manages updating the simulation of the world.
-* See `Matter.Runner` for an optional game loop utility.
+* The `Matter.Detector` module contains methods for efficiently detecting collisions between a list of bodies using a broadphase algorithm.
 *
-* See the included usage [examples](https://github.com/liabru/matter-js/tree/master/examples).
-*
-* @class Engine
+* @class Detector
 */
 
-var Engine = {};
+var Detector = {};
 
-module.exports = Engine;
+module.exports = Detector;
 
-var Sleeping = __webpack_require__(7);
-var Resolver = __webpack_require__(19);
-var Detector = __webpack_require__(14);
-var Pairs = __webpack_require__(20);
-var Events = __webpack_require__(4);
-var Composite = __webpack_require__(5);
-var Constraint = __webpack_require__(10);
 var Common = __webpack_require__(0);
-var Body = __webpack_require__(6);
+var Collision = __webpack_require__(7);
 
 (function() {
 
     /**
-     * Creates a new engine. The options parameter is an object that specifies any properties you wish to override the defaults.
-     * All properties have default values, and many are pre-calculated automatically based on other properties.
-     * See the properties section below for detailed information on what you can pass via the `options` object.
+     * Creates a new collision detector.
      * @method create
-     * @param {object} [options]
-     * @return {engine} engine
+     * @param {} options
+     * @return {detector} A new collision detector
      */
-    Engine.create = function(options) {
-        options = options || {};
-
+    Detector.create = function(options) {
         var defaults = {
-            positionIterations: 6,
-            velocityIterations: 4,
-            constraintIterations: 2,
-            enableSleeping: false,
-            events: [],
-            plugin: {},
-            gravity: {
-                x: 0,
-                y: 1,
-                scale: 0.001
-            },
-            timing: {
-                timestamp: 0,
-                timeScale: 1,
-                lastDelta: 0,
-                lastElapsed: 0
-            }
+            bodies: [],
+            pairs: null
         };
 
-        var engine = Common.extend(defaults, options);
-
-        engine.world = options.world || Composite.create({ label: 'World' });
-        engine.pairs = options.pairs || Pairs.create();
-        engine.detector = options.detector || Detector.create();
-
-        // for temporary back compatibility only
-        engine.grid = { buckets: [] };
-        engine.world.gravity = engine.gravity;
-        engine.broadphase = engine.grid;
-        engine.metrics = {};
-        
-        return engine;
+        return Common.extend(defaults, options);
     };
 
     /**
-     * Moves the simulation forward in time by `delta` ms.
-     * The `correction` argument is an optional `Number` that specifies the time correction factor to apply to the update.
-     * This can help improve the accuracy of the simulation in cases where `delta` is changing between updates.
-     * The value of `correction` is defined as `delta / lastDelta`, i.e. the percentage change of `delta` over the last step.
-     * Therefore the value is always `1` (no correction) when `delta` constant (or when no correction is desired, which is the default).
-     * See the paper on <a href="http://lonesock.net/article/verlet.html">Time Corrected Verlet</a> for more information.
-     *
-     * Triggers `beforeUpdate` and `afterUpdate` events.
-     * Triggers `collisionStart`, `collisionActive` and `collisionEnd` events.
-     * @method update
-     * @param {engine} engine
-     * @param {number} [delta=16.666]
-     * @param {number} [correction=1]
+     * Sets the list of bodies in the detector.
+     * @method setBodies
+     * @param {detector} detector
+     * @param {body[]} bodies
      */
-    Engine.update = function(engine, delta, correction) {
-        var startTime = Common.now();
-
-        delta = delta || 1000 / 60;
-        correction = correction || 1;
-
-        var world = engine.world,
-            detector = engine.detector,
-            pairs = engine.pairs,
-            timing = engine.timing,
-            timestamp = timing.timestamp,
-            i;
-
-        // increment timestamp
-        timing.timestamp += delta * timing.timeScale;
-        timing.lastDelta = delta * timing.timeScale;
-
-        // create an event object
-        var event = {
-            timestamp: timing.timestamp
-        };
-
-        Events.trigger(engine, 'beforeUpdate', event);
-
-        // get all bodies and all constraints in the world
-        var allBodies = Composite.allBodies(world),
-            allConstraints = Composite.allConstraints(world);
-
-        // update the detector bodies if they have changed
-        if (world.isModified) {
-            Detector.setBodies(detector, allBodies);
-        }
-
-        // reset all composite modified flags
-        if (world.isModified) {
-            Composite.setModified(world, false, false, true);
-        }
-
-        // update sleeping if enabled
-        if (engine.enableSleeping)
-            Sleeping.update(allBodies, timing.timeScale);
-
-        // apply gravity to all bodies
-        Engine._bodiesApplyGravity(allBodies, engine.gravity);
-
-        // update all body position and rotation by integration
-        Engine._bodiesUpdate(allBodies, delta, timing.timeScale, correction, world.bounds);
-
-        // update all constraints (first pass)
-        Constraint.preSolveAll(allBodies);
-        for (i = 0; i < engine.constraintIterations; i++) {
-            Constraint.solveAll(allConstraints, timing.timeScale);
-        }
-        Constraint.postSolveAll(allBodies);
-
-        // find all collisions
-        detector.pairs = engine.pairs;
-        var collisions = Detector.collisions(detector);
-
-        // update collision pairs
-        Pairs.update(pairs, collisions, timestamp);
-
-        // wake up bodies involved in collisions
-        if (engine.enableSleeping)
-            Sleeping.afterCollisions(pairs.list, timing.timeScale);
-
-        // trigger collision events
-        if (pairs.collisionStart.length > 0)
-            Events.trigger(engine, 'collisionStart', { pairs: pairs.collisionStart });
-
-        // iteratively resolve position between collisions
-        Resolver.preSolvePosition(pairs.list);
-        for (i = 0; i < engine.positionIterations; i++) {
-            Resolver.solvePosition(pairs.list, timing.timeScale);
-        }
-        Resolver.postSolvePosition(allBodies);
-
-        // update all constraints (second pass)
-        Constraint.preSolveAll(allBodies);
-        for (i = 0; i < engine.constraintIterations; i++) {
-            Constraint.solveAll(allConstraints, timing.timeScale);
-        }
-        Constraint.postSolveAll(allBodies);
-
-        // iteratively resolve velocity between collisions
-        Resolver.preSolveVelocity(pairs.list);
-        for (i = 0; i < engine.velocityIterations; i++) {
-            Resolver.solveVelocity(pairs.list, timing.timeScale);
-        }
-
-        // trigger collision events
-        if (pairs.collisionActive.length > 0)
-            Events.trigger(engine, 'collisionActive', { pairs: pairs.collisionActive });
-
-        if (pairs.collisionEnd.length > 0)
-            Events.trigger(engine, 'collisionEnd', { pairs: pairs.collisionEnd });
-
-        // clear force buffers
-        Engine._bodiesClearForces(allBodies);
-
-        Events.trigger(engine, 'afterUpdate', event);
-
-        // log the time elapsed computing this update
-        engine.timing.lastElapsed = Common.now() - startTime;
-
-        return engine;
-    };
-    
-    /**
-     * Merges two engines by keeping the configuration of `engineA` but replacing the world with the one from `engineB`.
-     * @method merge
-     * @param {engine} engineA
-     * @param {engine} engineB
-     */
-    Engine.merge = function(engineA, engineB) {
-        Common.extend(engineA, engineB);
-        
-        if (engineB.world) {
-            engineA.world = engineB.world;
-
-            Engine.clear(engineA);
-
-            var bodies = Composite.allBodies(engineA.world);
-
-            for (var i = 0; i < bodies.length; i++) {
-                var body = bodies[i];
-                Sleeping.set(body, false);
-                body.id = Common.nextId();
-            }
-        }
+    Detector.setBodies = function(detector, bodies) {
+        detector.bodies = bodies.slice(0);
     };
 
     /**
-     * Clears the engine pairs and detector.
+     * Clears the detector including its list of bodies.
      * @method clear
-     * @param {engine} engine
+     * @param {detector} detector
      */
-    Engine.clear = function(engine) {
-        Pairs.clear(engine.pairs);
-        Detector.clear(engine.detector);
+    Detector.clear = function(detector) {
+        detector.bodies = [];
     };
 
     /**
-     * Zeroes the `body.force` and `body.torque` force buffers.
-     * @method _bodiesClearForces
+     * Efficiently finds all collisions among all the bodies in `detector.bodies` using a broadphase algorithm.
+     * 
+     * _Note:_ The specific ordering of collisions returned is not guaranteed between releases and may change for performance reasons.
+     * If a specific ordering is required then apply a sort to the resulting array.
+     * @method collisions
+     * @param {detector} detector
+     * @return {collision[]} collisions
+     */
+    Detector.collisions = function(detector) {
+        var collisions = [],
+            pairs = detector.pairs,
+            bodies = detector.bodies,
+            bodiesLength = bodies.length,
+            canCollide = Detector.canCollide,
+            collides = Collision.collides,
+            i,
+            j;
+
+        bodies.sort(Detector._compareBoundsX);
+
+        for (i = 0; i < bodiesLength; i++) {
+            var bodyA = bodies[i],
+                boundsA = bodyA.bounds,
+                boundXMax = bodyA.bounds.max.x,
+                boundYMax = bodyA.bounds.max.y,
+                boundYMin = bodyA.bounds.min.y,
+                bodyAStatic = bodyA.isStatic || bodyA.isSleeping,
+                partsALength = bodyA.parts.length,
+                partsASingle = partsALength === 1;
+
+            for (j = i + 1; j < bodiesLength; j++) {
+                var bodyB = bodies[j],
+                    boundsB = bodyB.bounds;
+
+                if (boundsB.min.x > boundXMax) {
+                    break;
+                }
+
+                if (boundYMax < boundsB.min.y || boundYMin > boundsB.max.y) {
+                    continue;
+                }
+
+                if (bodyAStatic && (bodyB.isStatic || bodyB.isSleeping)) {
+                    continue;
+                }
+
+                if (!canCollide(bodyA.collisionFilter, bodyB.collisionFilter)) {
+                    continue;
+                }
+
+                var partsBLength = bodyB.parts.length;
+
+                if (partsASingle && partsBLength === 1) {
+                    var collision = collides(bodyA, bodyB, pairs);
+
+                    if (collision) {
+                        collisions.push(collision);
+                    }
+                } else {
+                    var partsAStart = partsALength > 1 ? 1 : 0,
+                        partsBStart = partsBLength > 1 ? 1 : 0;
+                    
+                    for (var k = partsAStart; k < partsALength; k++) {
+                        var partA = bodyA.parts[k],
+                            boundsA = partA.bounds;
+
+                        for (var z = partsBStart; z < partsBLength; z++) {
+                            var partB = bodyB.parts[z],
+                                boundsB = partB.bounds;
+
+                            if (boundsA.min.x > boundsB.max.x || boundsA.max.x < boundsB.min.x
+                                || boundsA.max.y < boundsB.min.y || boundsA.min.y > boundsB.max.y) {
+                                continue;
+                            }
+
+                            var collision = collides(partA, partB, pairs);
+
+                            if (collision) {
+                                collisions.push(collision);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return collisions;
+    };
+
+    /**
+     * Returns `true` if both supplied collision filters will allow a collision to occur.
+     * See `body.collisionFilter` for more information.
+     * @method canCollide
+     * @param {} filterA
+     * @param {} filterB
+     * @return {bool} `true` if collision can occur
+     */
+    Detector.canCollide = function(filterA, filterB) {
+        if (filterA.group === filterB.group && filterA.group !== 0)
+            return filterA.group > 0;
+
+        return (filterA.mask & filterB.category) !== 0 && (filterB.mask & filterA.category) !== 0;
+    };
+
+    /**
+     * The comparison function used in the broadphase algorithm.
+     * Returns the signed delta of the bodies bounds on the x-axis.
      * @private
-     * @param {body[]} bodies
+     * @method _sortCompare
+     * @param {body} bodyA
+     * @param {body} bodyB
+     * @return {number} The signed delta used for sorting
      */
-    Engine._bodiesClearForces = function(bodies) {
-        for (var i = 0; i < bodies.length; i++) {
-            var body = bodies[i];
-
-            // reset force buffers
-            body.force.x = 0;
-            body.force.y = 0;
-            body.torque = 0;
-        }
+    Detector._compareBoundsX = function(bodyA, bodyB) {
+        return bodyA.bounds.min.x - bodyB.bounds.min.x;
     };
-
-    /**
-     * Applys a mass dependant force to all given bodies.
-     * @method _bodiesApplyGravity
-     * @private
-     * @param {body[]} bodies
-     * @param {vector} gravity
-     */
-    Engine._bodiesApplyGravity = function(bodies, gravity) {
-        var gravityScale = typeof gravity.scale !== 'undefined' ? gravity.scale : 0.001;
-
-        if ((gravity.x === 0 && gravity.y === 0) || gravityScale === 0) {
-            return;
-        }
-        
-        for (var i = 0; i < bodies.length; i++) {
-            var body = bodies[i];
-
-            if (body.isStatic || body.isSleeping)
-                continue;
-
-            // apply gravity
-            body.force.y += body.mass * gravity.y * gravityScale;
-            body.force.x += body.mass * gravity.x * gravityScale;
-        }
-    };
-
-    /**
-     * Applys `Body.update` to all given `bodies`.
-     * @method _bodiesUpdate
-     * @private
-     * @param {body[]} bodies
-     * @param {number} deltaTime 
-     * The amount of time elapsed between updates
-     * @param {number} timeScale
-     * @param {number} correction 
-     * The Verlet correction factor (deltaTime / lastDeltaTime)
-     * @param {bounds} worldBounds
-     */
-    Engine._bodiesUpdate = function(bodies, deltaTime, timeScale, correction, worldBounds) {
-        for (var i = 0; i < bodies.length; i++) {
-            var body = bodies[i];
-
-            if (body.isStatic || body.isSleeping)
-                continue;
-
-            Body.update(body, deltaTime, timeScale, correction);
-        }
-    };
-
-    /**
-     * A deprecated alias for `Runner.run`, use `Matter.Runner.run(engine)` instead and see `Matter.Runner` for more information.
-     * @deprecated use Matter.Runner.run(engine) instead
-     * @method run
-     * @param {engine} engine
-     */
-
-    /**
-    * Fired just before an update
-    *
-    * @event beforeUpdate
-    * @param {object} event An event object
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {engine} event.source The source object of the event
-    * @param {string} event.name The name of the event
-    */
-
-    /**
-    * Fired after engine update and all collision events
-    *
-    * @event afterUpdate
-    * @param {object} event An event object
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {engine} event.source The source object of the event
-    * @param {string} event.name The name of the event
-    */
-
-    /**
-    * Fired after engine update, provides a list of all pairs that have started to collide in the current tick (if any)
-    *
-    * @event collisionStart
-    * @param {object} event An event object
-    * @param {pair[]} event.pairs List of affected pairs
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {engine} event.source The source object of the event
-    * @param {string} event.name The name of the event
-    */
-
-    /**
-    * Fired after engine update, provides a list of all pairs that are colliding in the current tick (if any)
-    *
-    * @event collisionActive
-    * @param {object} event An event object
-    * @param {pair[]} event.pairs List of affected pairs
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {engine} event.source The source object of the event
-    * @param {string} event.name The name of the event
-    */
-
-    /**
-    * Fired after engine update, provides a list of all pairs that have ended collision in the current tick (if any)
-    *
-    * @event collisionEnd
-    * @param {object} event An event object
-    * @param {pair[]} event.pairs List of affected pairs
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {engine} event.source The source object of the event
-    * @param {string} event.name The name of the event
-    */
 
     /*
     *
@@ -8255,165 +5544,26 @@ var Body = __webpack_require__(6);
     */
 
     /**
-     * An integer `Number` that specifies the number of position iterations to perform each update.
-     * The higher the value, the higher quality the simulation will be at the expense of performance.
-     *
-     * @property positionIterations
-     * @type number
-     * @default 6
+     * The array of `Matter.Body` between which the detector finds collisions.
+     * 
+     * _Note:_ The order of bodies in this array _is not fixed_ and will be continually managed by the detector.
+     * @property bodies
+     * @type body[]
+     * @default []
      */
 
     /**
-     * An integer `Number` that specifies the number of velocity iterations to perform each update.
-     * The higher the value, the higher quality the simulation will be at the expense of performance.
-     *
-     * @property velocityIterations
-     * @type number
-     * @default 4
-     */
-
-    /**
-     * An integer `Number` that specifies the number of constraint iterations to perform each update.
-     * The higher the value, the higher quality the simulation will be at the expense of performance.
-     * The default value of `2` is usually very adequate.
-     *
-     * @property constraintIterations
-     * @type number
-     * @default 2
-     */
-
-    /**
-     * A flag that specifies whether the engine should allow sleeping via the `Matter.Sleeping` module.
-     * Sleeping can improve stability and performance, but often at the expense of accuracy.
-     *
-     * @property enableSleeping
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * An `Object` containing properties regarding the timing systems of the engine. 
-     *
-     * @property timing
-     * @type object
-     */
-
-    /**
-     * A `Number` that specifies the global scaling factor of time for all bodies.
-     * A value of `0` freezes the simulation.
-     * A value of `0.1` gives a slow-motion effect.
-     * A value of `1.2` gives a speed-up effect.
-     *
-     * @property timing.timeScale
-     * @type number
-     * @default 1
-     */
-
-    /**
-     * A `Number` that specifies the current simulation-time in milliseconds starting from `0`. 
-     * It is incremented on every `Engine.update` by the given `delta` argument. 
-     *
-     * @property timing.timestamp
-     * @type number
-     * @default 0
-     */
-
-    /**
-     * A `Number` that represents the total execution time elapsed during the last `Engine.update` in milliseconds.
-     * It is updated by timing from the start of the last `Engine.update` call until it ends.
-     *
-     * This value will also include the total execution time of all event handlers directly or indirectly triggered by the engine update.
-     *
-     * @property timing.lastElapsed
-     * @type number
-     * @default 0
-     */
-
-    /**
-     * A `Number` that represents the `delta` value used in the last engine update.
-     *
-     * @property timing.lastDelta
-     * @type number
-     * @default 0
-     */
-
-    /**
-     * A `Matter.Detector` instance.
-     *
-     * @property detector
-     * @type detector
-     * @default a Matter.Detector instance
-     */
-
-    /**
-     * A `Matter.Grid` instance.
-     *
-     * @deprecated replaced by `engine.detector`
-     * @property grid
-     * @type grid
-     * @default a Matter.Grid instance
-     */
-
-    /**
-     * Replaced by and now alias for `engine.grid`.
-     *
-     * @deprecated replaced by `engine.detector`
-     * @property broadphase
-     * @type grid
-     * @default a Matter.Grid instance
-     */
-
-    /**
-     * The root `Matter.Composite` instance that will contain all bodies, constraints and other composites to be simulated by this engine.
-     *
-     * @property world
-     * @type composite
-     * @default a Matter.Composite instance
-     */
-
-    /**
-     * An object reserved for storing plugin-specific properties.
-     *
-     * @property plugin
-     * @type {}
-     */
-
-    /**
-     * The gravity to apply on all bodies in `engine.world`.
-     *
-     * @property gravity
-     * @type object
-     */
-
-    /**
-     * The gravity x component.
-     *
-     * @property gravity.x
-     * @type object
-     * @default 0
-     */
-
-    /**
-     * The gravity y component.
-     *
-     * @property gravity.y
-     * @type object
-     * @default 1
-     */
-
-    /**
-     * The gravity scale factor.
-     *
-     * @property gravity.scale
-     * @type object
-     * @default 0.001
+     * Optional. A `Matter.Pairs` object from which previous collision objects may be reused. Intended for internal `Matter.Engine` usage.
+     * @property pairs
+     * @type {pairs|null}
+     * @default null
      */
 
 })();
 
 
 /***/ }),
-/* 19 */
+/* 16 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -8782,7 +5932,7 @@ var Bounds = __webpack_require__(1);
 
 
 /***/ }),
-/* 20 */
+/* 17 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -8795,7 +5945,7 @@ var Pairs = {};
 
 module.exports = Pairs;
 
-var Pair = __webpack_require__(9);
+var Pair = __webpack_require__(8);
 var Common = __webpack_require__(0);
 
 (function() {
@@ -8918,48 +6068,43 @@ var Common = __webpack_require__(0);
 
 
 /***/ }),
-/* 21 */
+/* 18 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var Matter = module.exports = __webpack_require__(22);
+var Matter = module.exports = __webpack_require__(19);
 
-Matter.Axes = __webpack_require__(11);
-Matter.Bodies = __webpack_require__(12);
-Matter.Body = __webpack_require__(6);
+Matter.Axes = __webpack_require__(10);
+Matter.Bodies = __webpack_require__(11);
+Matter.Body = __webpack_require__(4);
 Matter.Bounds = __webpack_require__(1);
-Matter.Collision = __webpack_require__(8);
+Matter.Collision = __webpack_require__(7);
 Matter.Common = __webpack_require__(0);
-Matter.Composite = __webpack_require__(5);
-Matter.Composites = __webpack_require__(23);
-Matter.Constraint = __webpack_require__(10);
-Matter.Contact = __webpack_require__(17);
-Matter.Detector = __webpack_require__(14);
-Matter.Engine = __webpack_require__(18);
-Matter.Events = __webpack_require__(4);
-Matter.Grid = __webpack_require__(24);
-Matter.Mouse = __webpack_require__(13);
-Matter.MouseConstraint = __webpack_require__(25);
-Matter.Pair = __webpack_require__(9);
-Matter.Pairs = __webpack_require__(20);
-Matter.Plugin = __webpack_require__(15);
-Matter.Query = __webpack_require__(26);
-Matter.Render = __webpack_require__(16);
-Matter.Resolver = __webpack_require__(19);
-Matter.Runner = __webpack_require__(27);
-Matter.SAT = __webpack_require__(28);
-Matter.Sleeping = __webpack_require__(7);
-Matter.Svg = __webpack_require__(29);
+Matter.Composite = __webpack_require__(9);
+Matter.Composites = __webpack_require__(20);
+Matter.Constraint = __webpack_require__(12);
+Matter.Contact = __webpack_require__(14);
+Matter.Detector = __webpack_require__(15);
+Matter.Engine = __webpack_require__(21);
+Matter.Events = __webpack_require__(6);
+Matter.Grid = __webpack_require__(22);
+Matter.Pair = __webpack_require__(8);
+Matter.Pairs = __webpack_require__(17);
+Matter.Plugin = __webpack_require__(13);
+Matter.Query = __webpack_require__(23);
+Matter.Resolver = __webpack_require__(16);
+Matter.SAT = __webpack_require__(24);
+Matter.Sleeping = __webpack_require__(5);
+Matter.Svg = __webpack_require__(25);
 Matter.Vector = __webpack_require__(2);
 Matter.Vertices = __webpack_require__(3);
-Matter.World = __webpack_require__(30);
+Matter.World = __webpack_require__(26);
 
 // temporary back compatibility
-Matter.Engine.run = Matter.Runner.run;
 Matter.Common.deprecated(Matter.Engine, 'run', 'Engine.run ➤ use Matter.Runner.run(engine) instead');
 
 
 /***/ }),
-/* 22 */
+/* 19 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -8972,7 +6117,7 @@ var Matter = {};
 
 module.exports = Matter;
 
-var Plugin = __webpack_require__(15);
+var Plugin = __webpack_require__(13);
 var Common = __webpack_require__(0);
 
 (function() {
@@ -9021,37 +6166,11 @@ var Common = __webpack_require__(0);
         Plugin.use(Matter, Array.prototype.slice.call(arguments));
     };
 
-    /**
-     * Chains a function to excute before the original function on the given `path` relative to `Matter`.
-     * See also docs for `Common.chain`.
-     * @method before
-     * @param {string} path The path relative to `Matter`
-     * @param {function} func The function to chain before the original
-     * @return {function} The chained function that replaced the original
-     */
-    Matter.before = function(path, func) {
-        path = path.replace(/^Matter./, '');
-        return Common.chainPathBefore(Matter, path, func);
-    };
-
-    /**
-     * Chains a function to excute after the original function on the given `path` relative to `Matter`.
-     * See also docs for `Common.chain`.
-     * @method after
-     * @param {string} path The path relative to `Matter`
-     * @param {function} func The function to chain after the original
-     * @return {function} The chained function that replaced the original
-     */
-    Matter.after = function(path, func) {
-        path = path.replace(/^Matter./, '');
-        return Common.chainPathAfter(Matter, path, func);
-    };
-
 })();
 
 
 /***/ }),
-/* 23 */
+/* 20 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -9067,11 +6186,11 @@ var Composites = {};
 
 module.exports = Composites;
 
-var Composite = __webpack_require__(5);
-var Constraint = __webpack_require__(10);
+var Composite = __webpack_require__(9);
+var Constraint = __webpack_require__(12);
 var Common = __webpack_require__(0);
-var Body = __webpack_require__(6);
-var Bodies = __webpack_require__(12);
+var Body = __webpack_require__(4);
+var Bodies = __webpack_require__(11);
 var deprecated = Common.deprecated;
 
 (function() {
@@ -9376,7 +6495,7 @@ var deprecated = Common.deprecated;
      */
     Composites.softBody = function(xx, yy, columns, rows, columnGap, rowGap, crossBrace, particleRadius, particleOptions, constraintOptions) {
         particleOptions = Common.extend({ inertia: Infinity }, particleOptions);
-        constraintOptions = Common.extend({ stiffness: 0.2, render: { type: 'line', anchors: false } }, constraintOptions);
+        constraintOptions = Common.extend({ stiffness: 0.2 }, constraintOptions);
 
         var softBody = Composites.stack(xx, yy, columns, rows, columnGap, rowGap, function(x, y) {
             return Bodies.circle(x, y, particleRadius, particleOptions);
@@ -9394,7 +6513,522 @@ var deprecated = Common.deprecated;
 
 
 /***/ }),
-/* 24 */
+/* 21 */
+/***/ (function(module, exports, __webpack_require__) {
+
+/**
+* The `Matter.Engine` module contains methods for creating and manipulating engines.
+* An engine is a controller that manages updating the simulation of the world.
+*
+* See the included usage [examples](https://github.com/liabru/matter-js/tree/master/examples).
+*
+* @class Engine
+*/
+
+var Engine = {};
+
+module.exports = Engine;
+
+var Sleeping = __webpack_require__(5);
+var Resolver = __webpack_require__(16);
+var Detector = __webpack_require__(15);
+var Pairs = __webpack_require__(17);
+var Events = __webpack_require__(6);
+var Composite = __webpack_require__(9);
+var Constraint = __webpack_require__(12);
+var Common = __webpack_require__(0);
+var Body = __webpack_require__(4);
+
+(function() {
+
+    /**
+     * Creates a new engine. The options parameter is an object that specifies any properties you wish to override the defaults.
+     * All properties have default values, and many are pre-calculated automatically based on other properties.
+     * See the properties section below for detailed information on what you can pass via the `options` object.
+     * @method create
+     * @param {object} [options]
+     * @return {engine} engine
+     */
+    Engine.create = function(options) {
+        options = options || {};
+
+        var defaults = {
+            positionIterations: 6,
+            velocityIterations: 4,
+            constraintIterations: 2,
+            enableSleeping: false,
+            events: [],
+            plugin: {},
+            gravity: {
+                x: 0,
+                y: 1,
+                scale: 0.001
+            },
+            timing: {
+                timestamp: 0,
+                timeScale: 1,
+                lastDelta: 0,
+                lastElapsed: 0
+            }
+        };
+
+        var engine = Common.extend(defaults, options);
+
+        engine.world = options.world || Composite.create({ label: 'World' });
+        engine.pairs = options.pairs || Pairs.create();
+        engine.detector = options.detector || Detector.create();
+
+        // for temporary back compatibility only
+        engine.grid = { buckets: [] };
+        engine.world.gravity = engine.gravity;
+        engine.broadphase = engine.grid;
+        engine.metrics = {};
+        
+        return engine;
+    };
+
+    /**
+     * Moves the simulation forward in time by `delta` ms.
+     * The `correction` argument is an optional `Number` that specifies the time correction factor to apply to the update.
+     * This can help improve the accuracy of the simulation in cases where `delta` is changing between updates.
+     * The value of `correction` is defined as `delta / lastDelta`, i.e. the percentage change of `delta` over the last step.
+     * Therefore the value is always `1` (no correction) when `delta` constant (or when no correction is desired, which is the default).
+     * See the paper on <a href="http://lonesock.net/article/verlet.html">Time Corrected Verlet</a> for more information.
+     *
+     * Triggers `beforeUpdate` and `afterUpdate` events.
+     * Triggers `collisionStart`, `collisionActive` and `collisionEnd` events.
+     * @method update
+     * @param {engine} engine
+     * @param {number} [delta=16.666]
+     * @param {number} [correction=1]
+     */
+    Engine.update = function(engine, delta, correction) {
+        var startTime = Common.now();
+
+        delta = delta || 1000 / 60;
+        correction = correction || 1;
+
+        var world = engine.world,
+            detector = engine.detector,
+            pairs = engine.pairs,
+            timing = engine.timing,
+            timestamp = timing.timestamp,
+            i;
+
+        // increment timestamp
+        timing.timestamp += delta * timing.timeScale;
+        timing.lastDelta = delta * timing.timeScale;
+
+        // create an event object
+        var event = {
+            timestamp: timing.timestamp
+        };
+
+        Events.trigger(engine, 'beforeUpdate', event);
+
+        // get all bodies and all constraints in the world
+        var allBodies = Composite.allBodies(world),
+            allConstraints = Composite.allConstraints(world);
+
+        // update the detector bodies if they have changed
+        if (world.isModified) {
+            Detector.setBodies(detector, allBodies);
+        }
+
+        // reset all composite modified flags
+        if (world.isModified) {
+            Composite.setModified(world, false, false, true);
+        }
+
+        // update sleeping if enabled
+        if (engine.enableSleeping)
+            Sleeping.update(allBodies, timing.timeScale);
+
+        // apply gravity to all bodies
+        Engine._bodiesApplyGravity(allBodies, engine.gravity);
+
+        // update all body position and rotation by integration
+        Engine._bodiesUpdate(allBodies, delta, timing.timeScale, correction, world.bounds);
+
+        // update all constraints (first pass)
+        Constraint.preSolveAll(allBodies);
+        for (i = 0; i < engine.constraintIterations; i++) {
+            Constraint.solveAll(allConstraints, timing.timeScale);
+        }
+        Constraint.postSolveAll(allBodies);
+
+        // find all collisions
+        detector.pairs = engine.pairs;
+        var collisions = Detector.collisions(detector);
+
+        // update collision pairs
+        Pairs.update(pairs, collisions, timestamp);
+
+        // wake up bodies involved in collisions
+        if (engine.enableSleeping)
+            Sleeping.afterCollisions(pairs.list, timing.timeScale);
+
+        // trigger collision events
+        if (pairs.collisionStart.length > 0)
+            Events.trigger(engine, 'collisionStart', { pairs: pairs.collisionStart });
+
+        // iteratively resolve position between collisions
+        Resolver.preSolvePosition(pairs.list);
+        for (i = 0; i < engine.positionIterations; i++) {
+            Resolver.solvePosition(pairs.list, timing.timeScale);
+        }
+        Resolver.postSolvePosition(allBodies);
+
+        // update all constraints (second pass)
+        Constraint.preSolveAll(allBodies);
+        for (i = 0; i < engine.constraintIterations; i++) {
+            Constraint.solveAll(allConstraints, timing.timeScale);
+        }
+        Constraint.postSolveAll(allBodies);
+
+        // iteratively resolve velocity between collisions
+        Resolver.preSolveVelocity(pairs.list);
+        for (i = 0; i < engine.velocityIterations; i++) {
+            Resolver.solveVelocity(pairs.list, timing.timeScale);
+        }
+
+        // trigger collision events
+        if (pairs.collisionActive.length > 0)
+            Events.trigger(engine, 'collisionActive', { pairs: pairs.collisionActive });
+
+        if (pairs.collisionEnd.length > 0)
+            Events.trigger(engine, 'collisionEnd', { pairs: pairs.collisionEnd });
+
+        // clear force buffers
+        Engine._bodiesClearForces(allBodies);
+
+        Events.trigger(engine, 'afterUpdate', event);
+
+        // log the time elapsed computing this update
+        engine.timing.lastElapsed = Common.now() - startTime;
+
+        return engine;
+    };
+    
+    /**
+     * Merges two engines by keeping the configuration of `engineA` but replacing the world with the one from `engineB`.
+     * @method merge
+     * @param {engine} engineA
+     * @param {engine} engineB
+     */
+    Engine.merge = function(engineA, engineB) {
+        Common.extend(engineA, engineB);
+        
+        if (engineB.world) {
+            engineA.world = engineB.world;
+
+            Engine.clear(engineA);
+
+            var bodies = Composite.allBodies(engineA.world);
+
+            for (var i = 0; i < bodies.length; i++) {
+                var body = bodies[i];
+                Sleeping.set(body, false);
+                body.id = Common.nextId();
+            }
+        }
+    };
+
+    /**
+     * Clears the engine pairs and detector.
+     * @method clear
+     * @param {engine} engine
+     */
+    Engine.clear = function(engine) {
+        Pairs.clear(engine.pairs);
+        Detector.clear(engine.detector);
+    };
+
+    /**
+     * Zeroes the `body.force` and `body.torque` force buffers.
+     * @method _bodiesClearForces
+     * @private
+     * @param {body[]} bodies
+     */
+    Engine._bodiesClearForces = function(bodies) {
+        for (var i = 0; i < bodies.length; i++) {
+            var body = bodies[i];
+
+            // reset force buffers
+            body.force.x = 0;
+            body.force.y = 0;
+            body.torque = 0;
+        }
+    };
+
+    /**
+     * Applys a mass dependant force to all given bodies.
+     * @method _bodiesApplyGravity
+     * @private
+     * @param {body[]} bodies
+     * @param {vector} gravity
+     */
+    Engine._bodiesApplyGravity = function(bodies, gravity) {
+        var gravityScale = typeof gravity.scale !== 'undefined' ? gravity.scale : 0.001;
+
+        if ((gravity.x === 0 && gravity.y === 0) || gravityScale === 0) {
+            return;
+        }
+        
+        for (var i = 0; i < bodies.length; i++) {
+            var body = bodies[i];
+
+            if (body.isStatic || body.isSleeping)
+                continue;
+
+            // apply gravity
+            body.force.y += body.mass * gravity.y * gravityScale;
+            body.force.x += body.mass * gravity.x * gravityScale;
+        }
+    };
+
+    /**
+     * Applys `Body.update` to all given `bodies`.
+     * @method _bodiesUpdate
+     * @private
+     * @param {body[]} bodies
+     * @param {number} deltaTime 
+     * The amount of time elapsed between updates
+     * @param {number} timeScale
+     * @param {number} correction 
+     * The Verlet correction factor (deltaTime / lastDeltaTime)
+     * @param {bounds} worldBounds
+     */
+    Engine._bodiesUpdate = function(bodies, deltaTime, timeScale, correction, worldBounds) {
+        for (var i = 0; i < bodies.length; i++) {
+            var body = bodies[i];
+
+            if (body.isStatic || body.isSleeping)
+                continue;
+
+            Body.update(body, deltaTime, timeScale, correction);
+        }
+    };
+
+    /**
+    * Fired just before an update
+    *
+    * @event beforeUpdate
+    * @param {object} event An event object
+    * @param {number} event.timestamp The engine.timing.timestamp of the event
+    * @param {engine} event.source The source object of the event
+    * @param {string} event.name The name of the event
+    */
+
+    /**
+    * Fired after engine update and all collision events
+    *
+    * @event afterUpdate
+    * @param {object} event An event object
+    * @param {number} event.timestamp The engine.timing.timestamp of the event
+    * @param {engine} event.source The source object of the event
+    * @param {string} event.name The name of the event
+    */
+
+    /**
+    * Fired after engine update, provides a list of all pairs that have started to collide in the current tick (if any)
+    *
+    * @event collisionStart
+    * @param {object} event An event object
+    * @param {pair[]} event.pairs List of affected pairs
+    * @param {number} event.timestamp The engine.timing.timestamp of the event
+    * @param {engine} event.source The source object of the event
+    * @param {string} event.name The name of the event
+    */
+
+    /**
+    * Fired after engine update, provides a list of all pairs that are colliding in the current tick (if any)
+    *
+    * @event collisionActive
+    * @param {object} event An event object
+    * @param {pair[]} event.pairs List of affected pairs
+    * @param {number} event.timestamp The engine.timing.timestamp of the event
+    * @param {engine} event.source The source object of the event
+    * @param {string} event.name The name of the event
+    */
+
+    /**
+    * Fired after engine update, provides a list of all pairs that have ended collision in the current tick (if any)
+    *
+    * @event collisionEnd
+    * @param {object} event An event object
+    * @param {pair[]} event.pairs List of affected pairs
+    * @param {number} event.timestamp The engine.timing.timestamp of the event
+    * @param {engine} event.source The source object of the event
+    * @param {string} event.name The name of the event
+    */
+
+    /*
+    *
+    *  Properties Documentation
+    *
+    */
+
+    /**
+     * An integer `Number` that specifies the number of position iterations to perform each update.
+     * The higher the value, the higher quality the simulation will be at the expense of performance.
+     *
+     * @property positionIterations
+     * @type number
+     * @default 6
+     */
+
+    /**
+     * An integer `Number` that specifies the number of velocity iterations to perform each update.
+     * The higher the value, the higher quality the simulation will be at the expense of performance.
+     *
+     * @property velocityIterations
+     * @type number
+     * @default 4
+     */
+
+    /**
+     * An integer `Number` that specifies the number of constraint iterations to perform each update.
+     * The higher the value, the higher quality the simulation will be at the expense of performance.
+     * The default value of `2` is usually very adequate.
+     *
+     * @property constraintIterations
+     * @type number
+     * @default 2
+     */
+
+    /**
+     * A flag that specifies whether the engine should allow sleeping via the `Matter.Sleeping` module.
+     * Sleeping can improve stability and performance, but often at the expense of accuracy.
+     *
+     * @property enableSleeping
+     * @type boolean
+     * @default false
+     */
+
+    /**
+     * An `Object` containing properties regarding the timing systems of the engine. 
+     *
+     * @property timing
+     * @type object
+     */
+
+    /**
+     * A `Number` that specifies the global scaling factor of time for all bodies.
+     * A value of `0` freezes the simulation.
+     * A value of `0.1` gives a slow-motion effect.
+     * A value of `1.2` gives a speed-up effect.
+     *
+     * @property timing.timeScale
+     * @type number
+     * @default 1
+     */
+
+    /**
+     * A `Number` that specifies the current simulation-time in milliseconds starting from `0`. 
+     * It is incremented on every `Engine.update` by the given `delta` argument. 
+     *
+     * @property timing.timestamp
+     * @type number
+     * @default 0
+     */
+
+    /**
+     * A `Number` that represents the total execution time elapsed during the last `Engine.update` in milliseconds.
+     * It is updated by timing from the start of the last `Engine.update` call until it ends.
+     *
+     * This value will also include the total execution time of all event handlers directly or indirectly triggered by the engine update.
+     *
+     * @property timing.lastElapsed
+     * @type number
+     * @default 0
+     */
+
+    /**
+     * A `Number` that represents the `delta` value used in the last engine update.
+     *
+     * @property timing.lastDelta
+     * @type number
+     * @default 0
+     */
+
+    /**
+     * A `Matter.Detector` instance.
+     *
+     * @property detector
+     * @type detector
+     * @default a Matter.Detector instance
+     */
+
+    /**
+     * A `Matter.Grid` instance.
+     *
+     * @deprecated replaced by `engine.detector`
+     * @property grid
+     * @type grid
+     * @default a Matter.Grid instance
+     */
+
+    /**
+     * Replaced by and now alias for `engine.grid`.
+     *
+     * @deprecated replaced by `engine.detector`
+     * @property broadphase
+     * @type grid
+     * @default a Matter.Grid instance
+     */
+
+    /**
+     * The root `Matter.Composite` instance that will contain all bodies, constraints and other composites to be simulated by this engine.
+     *
+     * @property world
+     * @type composite
+     * @default a Matter.Composite instance
+     */
+
+    /**
+     * An object reserved for storing plugin-specific properties.
+     *
+     * @property plugin
+     * @type {}
+     */
+
+    /**
+     * The gravity to apply on all bodies in `engine.world`.
+     *
+     * @property gravity
+     * @type object
+     */
+
+    /**
+     * The gravity x component.
+     *
+     * @property gravity.x
+     * @type object
+     * @default 0
+     */
+
+    /**
+     * The gravity y component.
+     *
+     * @property gravity.y
+     * @type object
+     * @default 1
+     */
+
+    /**
+     * The gravity scale factor.
+     *
+     * @property gravity.scale
+     * @type object
+     * @default 0.001
+     */
+
+})();
+
+
+/***/ }),
+/* 22 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -9413,7 +7047,7 @@ var Grid = {};
 
 module.exports = Grid;
 
-var Pair = __webpack_require__(9);
+var Pair = __webpack_require__(8);
 var Common = __webpack_require__(0);
 var deprecated = Common.deprecated;
 
@@ -9740,274 +7374,7 @@ var deprecated = Common.deprecated;
 
 
 /***/ }),
-/* 25 */
-/***/ (function(module, exports, __webpack_require__) {
-
-/**
-* The `Matter.MouseConstraint` module contains methods for creating mouse constraints.
-* Mouse constraints are used for allowing user interaction, providing the ability to move bodies via the mouse or touch.
-*
-* See the included usage [examples](https://github.com/liabru/matter-js/tree/master/examples).
-*
-* @class MouseConstraint
-*/
-
-var MouseConstraint = {};
-
-module.exports = MouseConstraint;
-
-var Vertices = __webpack_require__(3);
-var Sleeping = __webpack_require__(7);
-var Mouse = __webpack_require__(13);
-var Events = __webpack_require__(4);
-var Detector = __webpack_require__(14);
-var Constraint = __webpack_require__(10);
-var Composite = __webpack_require__(5);
-var Common = __webpack_require__(0);
-var Bounds = __webpack_require__(1);
-
-(function() {
-
-    /**
-     * Creates a new mouse constraint.
-     * All properties have default values, and many are pre-calculated automatically based on other properties.
-     * See the properties section below for detailed information on what you can pass via the `options` object.
-     * @method create
-     * @param {engine} engine
-     * @param {} options
-     * @return {MouseConstraint} A new MouseConstraint
-     */
-    MouseConstraint.create = function(engine, options) {
-        var mouse = (engine ? engine.mouse : null) || (options ? options.mouse : null);
-
-        if (!mouse) {
-            if (engine && engine.render && engine.render.canvas) {
-                mouse = Mouse.create(engine.render.canvas);
-            } else if (options && options.element) {
-                mouse = Mouse.create(options.element);
-            } else {
-                mouse = Mouse.create();
-                Common.warn('MouseConstraint.create: options.mouse was undefined, options.element was undefined, may not function as expected');
-            }
-        }
-
-        var constraint = Constraint.create({ 
-            label: 'Mouse Constraint',
-            pointA: mouse.position,
-            pointB: { x: 0, y: 0 },
-            length: 0.01, 
-            stiffness: 0.1,
-            angularStiffness: 1,
-            render: {
-                strokeStyle: '#90EE90',
-                lineWidth: 3
-            }
-        });
-
-        var defaults = {
-            type: 'mouseConstraint',
-            mouse: mouse,
-            element: null,
-            body: null,
-            constraint: constraint,
-            collisionFilter: {
-                category: 0x0001,
-                mask: 0xFFFFFFFF,
-                group: 0
-            }
-        };
-
-        var mouseConstraint = Common.extend(defaults, options);
-
-        Events.on(engine, 'beforeUpdate', function() {
-            var allBodies = Composite.allBodies(engine.world);
-            MouseConstraint.update(mouseConstraint, allBodies);
-            MouseConstraint._triggerEvents(mouseConstraint);
-        });
-
-        return mouseConstraint;
-    };
-
-    /**
-     * Updates the given mouse constraint.
-     * @private
-     * @method update
-     * @param {MouseConstraint} mouseConstraint
-     * @param {body[]} bodies
-     */
-    MouseConstraint.update = function(mouseConstraint, bodies) {
-        var mouse = mouseConstraint.mouse,
-            constraint = mouseConstraint.constraint,
-            body = mouseConstraint.body;
-
-        if (mouse.button === 0) {
-            if (!constraint.bodyB) {
-                for (var i = 0; i < bodies.length; i++) {
-                    body = bodies[i];
-                    if (Bounds.contains(body.bounds, mouse.position) 
-                            && Detector.canCollide(body.collisionFilter, mouseConstraint.collisionFilter)) {
-                        for (var j = body.parts.length > 1 ? 1 : 0; j < body.parts.length; j++) {
-                            var part = body.parts[j];
-                            if (Vertices.contains(part.vertices, mouse.position)) {
-                                constraint.pointA = mouse.position;
-                                constraint.bodyB = mouseConstraint.body = body;
-                                constraint.pointB = { x: mouse.position.x - body.position.x, y: mouse.position.y - body.position.y };
-                                constraint.angleB = body.angle;
-
-                                Sleeping.set(body, false);
-                                Events.trigger(mouseConstraint, 'startdrag', { mouse: mouse, body: body });
-
-                                break;
-                            }
-                        }
-                    }
-                }
-            } else {
-                Sleeping.set(constraint.bodyB, false);
-                constraint.pointA = mouse.position;
-            }
-        } else {
-            constraint.bodyB = mouseConstraint.body = null;
-            constraint.pointB = null;
-
-            if (body)
-                Events.trigger(mouseConstraint, 'enddrag', { mouse: mouse, body: body });
-        }
-    };
-
-    /**
-     * Triggers mouse constraint events.
-     * @method _triggerEvents
-     * @private
-     * @param {mouse} mouseConstraint
-     */
-    MouseConstraint._triggerEvents = function(mouseConstraint) {
-        var mouse = mouseConstraint.mouse,
-            mouseEvents = mouse.sourceEvents;
-
-        if (mouseEvents.mousemove)
-            Events.trigger(mouseConstraint, 'mousemove', { mouse: mouse });
-
-        if (mouseEvents.mousedown)
-            Events.trigger(mouseConstraint, 'mousedown', { mouse: mouse });
-
-        if (mouseEvents.mouseup)
-            Events.trigger(mouseConstraint, 'mouseup', { mouse: mouse });
-
-        // reset the mouse state ready for the next step
-        Mouse.clearSourceEvents(mouse);
-    };
-
-    /*
-    *
-    *  Events Documentation
-    *
-    */
-
-    /**
-    * Fired when the mouse has moved (or a touch moves) during the last step
-    *
-    * @event mousemove
-    * @param {} event An event object
-    * @param {mouse} event.mouse The engine's mouse instance
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired when the mouse is down (or a touch has started) during the last step
-    *
-    * @event mousedown
-    * @param {} event An event object
-    * @param {mouse} event.mouse The engine's mouse instance
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired when the mouse is up (or a touch has ended) during the last step
-    *
-    * @event mouseup
-    * @param {} event An event object
-    * @param {mouse} event.mouse The engine's mouse instance
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired when the user starts dragging a body
-    *
-    * @event startdrag
-    * @param {} event An event object
-    * @param {mouse} event.mouse The engine's mouse instance
-    * @param {body} event.body The body being dragged
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired when the user ends dragging a body
-    *
-    * @event enddrag
-    * @param {} event An event object
-    * @param {mouse} event.mouse The engine's mouse instance
-    * @param {body} event.body The body that has stopped being dragged
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /*
-    *
-    *  Properties Documentation
-    *
-    */
-
-    /**
-     * A `String` denoting the type of object.
-     *
-     * @property type
-     * @type string
-     * @default "constraint"
-     * @readOnly
-     */
-
-    /**
-     * The `Mouse` instance in use. If not supplied in `MouseConstraint.create`, one will be created.
-     *
-     * @property mouse
-     * @type mouse
-     * @default mouse
-     */
-
-    /**
-     * The `Body` that is currently being moved by the user, or `null` if no body.
-     *
-     * @property body
-     * @type body
-     * @default null
-     */
-
-    /**
-     * The `Constraint` object that is used to move the body during interaction.
-     *
-     * @property constraint
-     * @type constraint
-     */
-
-    /**
-     * An `Object` that specifies the collision filter properties.
-     * The collision filter allows the user to define which types of body this mouse constraint can interact with.
-     * See `body.collisionFilter` for more information.
-     *
-     * @property collisionFilter
-     * @type object
-     */
-
-})();
-
-
-/***/ }),
-/* 26 */
+/* 23 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -10023,9 +7390,9 @@ var Query = {};
 module.exports = Query;
 
 var Vector = __webpack_require__(2);
-var Collision = __webpack_require__(8);
+var Collision = __webpack_require__(7);
 var Bounds = __webpack_require__(1);
-var Bodies = __webpack_require__(12);
+var Bodies = __webpack_require__(11);
 var Vertices = __webpack_require__(3);
 
 (function() {
@@ -10149,297 +7516,7 @@ var Vertices = __webpack_require__(3);
 
 
 /***/ }),
-/* 27 */
-/***/ (function(module, exports, __webpack_require__) {
-
-/**
-* The `Matter.Runner` module is an optional utility which provides a game loop, 
-* that handles continuously updating a `Matter.Engine` for you within a browser.
-* It is intended for development and debugging purposes, but may also be suitable for simple games.
-* If you are using your own game loop instead, then you do not need the `Matter.Runner` module.
-* Instead just call `Engine.update(engine, delta)` in your own loop.
-*
-* See the included usage [examples](https://github.com/liabru/matter-js/tree/master/examples).
-*
-* @class Runner
-*/
-
-var Runner = {};
-
-module.exports = Runner;
-
-var Events = __webpack_require__(4);
-var Engine = __webpack_require__(18);
-var Common = __webpack_require__(0);
-
-(function() {
-
-    var _requestAnimationFrame,
-        _cancelAnimationFrame;
-
-    if (typeof window !== 'undefined') {
-        _requestAnimationFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame
-                                      || window.mozRequestAnimationFrame || window.msRequestAnimationFrame;
-   
-        _cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame 
-                                      || window.webkitCancelAnimationFrame || window.msCancelAnimationFrame;
-    }
-
-    if (!_requestAnimationFrame) {
-        var _frameTimeout;
-
-        _requestAnimationFrame = function(callback){ 
-            _frameTimeout = setTimeout(function() { 
-                callback(Common.now()); 
-            }, 1000 / 60);
-        };
-
-        _cancelAnimationFrame = function() {
-            clearTimeout(_frameTimeout);
-        };
-    }
-
-    /**
-     * Creates a new Runner. The options parameter is an object that specifies any properties you wish to override the defaults.
-     * @method create
-     * @param {} options
-     */
-    Runner.create = function(options) {
-        var defaults = {
-            fps: 60,
-            correction: 1,
-            deltaSampleSize: 60,
-            counterTimestamp: 0,
-            frameCounter: 0,
-            deltaHistory: [],
-            timePrev: null,
-            timeScalePrev: 1,
-            frameRequestId: null,
-            isFixed: false,
-            enabled: true
-        };
-
-        var runner = Common.extend(defaults, options);
-
-        runner.delta = runner.delta || 1000 / runner.fps;
-        runner.deltaMin = runner.deltaMin || 1000 / runner.fps;
-        runner.deltaMax = runner.deltaMax || 1000 / (runner.fps * 0.5);
-        runner.fps = 1000 / runner.delta;
-
-        return runner;
-    };
-
-    /**
-     * Continuously ticks a `Matter.Engine` by calling `Runner.tick` on the `requestAnimationFrame` event.
-     * @method run
-     * @param {engine} engine
-     */
-    Runner.run = function(runner, engine) {
-        // create runner if engine is first argument
-        if (typeof runner.positionIterations !== 'undefined') {
-            engine = runner;
-            runner = Runner.create();
-        }
-
-        (function render(time){
-            runner.frameRequestId = _requestAnimationFrame(render);
-
-            if (time && runner.enabled) {
-                Runner.tick(runner, engine, time);
-            }
-        })();
-
-        return runner;
-    };
-
-    /**
-     * A game loop utility that updates the engine and renderer by one step (a 'tick').
-     * Features delta smoothing, time correction and fixed or dynamic timing.
-     * Consider just `Engine.update(engine, delta)` if you're using your own loop.
-     * @method tick
-     * @param {runner} runner
-     * @param {engine} engine
-     * @param {number} time
-     */
-    Runner.tick = function(runner, engine, time) {
-        var timing = engine.timing,
-            correction = 1,
-            delta;
-
-        // create an event object
-        var event = {
-            timestamp: timing.timestamp
-        };
-
-        Events.trigger(runner, 'beforeTick', event);
-
-        if (runner.isFixed) {
-            // fixed timestep
-            delta = runner.delta;
-        } else {
-            // dynamic timestep based on wall clock between calls
-            delta = (time - runner.timePrev) || runner.delta;
-            runner.timePrev = time;
-
-            // optimistically filter delta over a few frames, to improve stability
-            runner.deltaHistory.push(delta);
-            runner.deltaHistory = runner.deltaHistory.slice(-runner.deltaSampleSize);
-            delta = Math.min.apply(null, runner.deltaHistory);
-            
-            // limit delta
-            delta = delta < runner.deltaMin ? runner.deltaMin : delta;
-            delta = delta > runner.deltaMax ? runner.deltaMax : delta;
-
-            // correction for delta
-            correction = delta / runner.delta;
-
-            // update engine timing object
-            runner.delta = delta;
-        }
-
-        // time correction for time scaling
-        if (runner.timeScalePrev !== 0)
-            correction *= timing.timeScale / runner.timeScalePrev;
-
-        if (timing.timeScale === 0)
-            correction = 0;
-
-        runner.timeScalePrev = timing.timeScale;
-        runner.correction = correction;
-
-        // fps counter
-        runner.frameCounter += 1;
-        if (time - runner.counterTimestamp >= 1000) {
-            runner.fps = runner.frameCounter * ((time - runner.counterTimestamp) / 1000);
-            runner.counterTimestamp = time;
-            runner.frameCounter = 0;
-        }
-
-        Events.trigger(runner, 'tick', event);
-
-        // update
-        Events.trigger(runner, 'beforeUpdate', event);
-        Engine.update(engine, delta, correction);
-        Events.trigger(runner, 'afterUpdate', event);
-
-        Events.trigger(runner, 'afterTick', event);
-    };
-
-    /**
-     * Ends execution of `Runner.run` on the given `runner`, by canceling the animation frame request event loop.
-     * If you wish to only temporarily pause the engine, see `engine.enabled` instead.
-     * @method stop
-     * @param {runner} runner
-     */
-    Runner.stop = function(runner) {
-        _cancelAnimationFrame(runner.frameRequestId);
-    };
-
-    /**
-     * Alias for `Runner.run`.
-     * @method start
-     * @param {runner} runner
-     * @param {engine} engine
-     */
-    Runner.start = function(runner, engine) {
-        Runner.run(runner, engine);
-    };
-
-    /*
-    *
-    *  Events Documentation
-    *
-    */
-
-    /**
-    * Fired at the start of a tick, before any updates to the engine or timing
-    *
-    * @event beforeTick
-    * @param {} event An event object
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired after engine timing updated, but just before update
-    *
-    * @event tick
-    * @param {} event An event object
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired at the end of a tick, after engine update and after rendering
-    *
-    * @event afterTick
-    * @param {} event An event object
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired before update
-    *
-    * @event beforeUpdate
-    * @param {} event An event object
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /**
-    * Fired after update
-    *
-    * @event afterUpdate
-    * @param {} event An event object
-    * @param {number} event.timestamp The engine.timing.timestamp of the event
-    * @param {} event.source The source object of the event
-    * @param {} event.name The name of the event
-    */
-
-    /*
-    *
-    *  Properties Documentation
-    *
-    */
-
-    /**
-     * A flag that specifies whether the runner is running or not.
-     *
-     * @property enabled
-     * @type boolean
-     * @default true
-     */
-
-    /**
-     * A `Boolean` that specifies if the runner should use a fixed timestep (otherwise it is variable).
-     * If timing is fixed, then the apparent simulation speed will change depending on the frame rate (but behaviour will be deterministic).
-     * If the timing is variable, then the apparent simulation speed will be constant (approximately, but at the cost of determininism).
-     *
-     * @property isFixed
-     * @type boolean
-     * @default false
-     */
-
-    /**
-     * A `Number` that specifies the time step between updates in milliseconds.
-     * If `engine.timing.isFixed` is set to `true`, then `delta` is fixed.
-     * If it is `false`, then `delta` can dynamically change to maintain the correct apparent simulation speed.
-     *
-     * @property delta
-     * @type number
-     * @default 1000 / 60
-     */
-
-})();
-
-
-/***/ }),
-/* 28 */
+/* 24 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -10458,7 +7535,7 @@ var SAT = {};
 
 module.exports = SAT;
 
-var Collision = __webpack_require__(8);
+var Collision = __webpack_require__(7);
 var Common = __webpack_require__(0);
 var deprecated = Common.deprecated;
 
@@ -10482,7 +7559,7 @@ var deprecated = Common.deprecated;
 
 
 /***/ }),
-/* 29 */
+/* 25 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -10713,7 +7790,7 @@ var Common = __webpack_require__(0);
 })();
 
 /***/ }),
-/* 30 */
+/* 26 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -10734,7 +7811,7 @@ var World = {};
 
 module.exports = World;
 
-var Composite = __webpack_require__(5);
+var Composite = __webpack_require__(9);
 var Common = __webpack_require__(0);
 
 (function() {

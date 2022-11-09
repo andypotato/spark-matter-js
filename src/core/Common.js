@@ -490,88 +490,6 @@ module.exports = Common;
     };
 
     /**
-     * Takes _n_ functions as arguments and returns a new function that calls them in order.
-     * The arguments applied when calling the new function will also be applied to every function passed.
-     * The value of `this` refers to the last value returned in the chain that was not `undefined`.
-     * Therefore if a passed function does not return a value, the previously returned value is maintained.
-     * After all passed functions have been called the new function returns the last returned value (if any).
-     * If any of the passed functions are a chain, then the chain will be flattened.
-     * @method chain
-     * @param ...funcs {function} The functions to chain.
-     * @return {function} A new function that calls the passed functions in order.
-     */
-    Common.chain = function() {
-        var funcs = [];
-
-        for (var i = 0; i < arguments.length; i += 1) {
-            var func = arguments[i];
-
-            if (func._chained) {
-                // flatten already chained functions
-                funcs.push.apply(funcs, func._chained);
-            } else {
-                funcs.push(func);
-            }
-        }
-
-        var chain = function() {
-            // https://github.com/GoogleChrome/devtools-docs/issues/53#issuecomment-51941358
-            var lastResult,
-                args = new Array(arguments.length);
-
-            for (var i = 0, l = arguments.length; i < l; i++) {
-                args[i] = arguments[i];
-            }
-
-            for (i = 0; i < funcs.length; i += 1) {
-                var result = funcs[i].apply(lastResult, args);
-
-                if (typeof result !== 'undefined') {
-                    lastResult = result;
-                }
-            }
-
-            return lastResult;
-        };
-
-        chain._chained = funcs;
-
-        return chain;
-    };
-
-    /**
-     * Chains a function to excute before the original function on the given `path` relative to `base`.
-     * See also docs for `Common.chain`.
-     * @method chainPathBefore
-     * @param {} base The base object
-     * @param {string} path The path relative to `base`
-     * @param {function} func The function to chain before the original
-     * @return {function} The chained function that replaced the original
-     */
-    Common.chainPathBefore = function(base, path, func) {
-        return Common.set(base, path, Common.chain(
-            func,
-            Common.get(base, path)
-        ));
-    };
-
-    /**
-     * Chains a function to excute after the original function on the given `path` relative to `base`.
-     * See also docs for `Common.chain`.
-     * @method chainPathAfter
-     * @param {} base The base object
-     * @param {string} path The path relative to `base`
-     * @param {function} func The function to chain after the original
-     * @return {function} The chained function that replaced the original
-     */
-    Common.chainPathAfter = function(base, path, func) {
-        return Common.set(base, path, Common.chain(
-            Common.get(base, path),
-            func
-        ));
-    };
-
-    /**
      * Provide the [poly-decomp](https://github.com/schteppe/poly-decomp.js) library module to enable
      * concave vertex decomposition support when using `Bodies.fromVertices` e.g. `Common.setDecomp(require('poly-decomp'))`.
      * @method setDecomp
@@ -591,19 +509,8 @@ module.exports = Common;
         // get user provided decomp if set
         var decomp = Common._decomp;
 
-        try {
-            // otherwise from window global
-            if (!decomp && typeof window !== 'undefined') {
-                decomp = window.decomp;
-            }
-    
-            // otherwise from node global
-            if (!decomp && typeof global !== 'undefined') {
-                decomp = global.decomp;
-            }
-        } catch (e) {
-            // decomp not available
-            decomp = null;
+        if(!decomp) {
+            return null;
         }
 
         return decomp;

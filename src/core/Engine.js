@@ -1,7 +1,6 @@
 /**
 * The `Matter.Engine` module contains methods for creating and manipulating engines.
 * An engine is a controller that manages updating the simulation of the world.
-* See `Matter.Runner` for an optional game loop utility.
 *
 * See the included usage [examples](https://github.com/liabru/matter-js/tree/master/examples).
 *
@@ -292,13 +291,6 @@ var Body = require('../body/Body');
             Body.update(body, deltaTime, timeScale, correction);
         }
     };
-
-    /**
-     * A deprecated alias for `Runner.run`, use `Matter.Runner.run(engine)` instead and see `Matter.Runner` for more information.
-     * @deprecated use Matter.Runner.run(engine) instead
-     * @method run
-     * @param {engine} engine
-     */
 
     /**
     * Fired just before an update

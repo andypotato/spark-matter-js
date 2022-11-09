@@ -113,9 +113,6 @@ var Body = require('./Body');
             case 'composite':
                 Composite.addComposite(composite, obj);
                 break;
-            case 'mouseConstraint':
-                Composite.addConstraint(composite, obj.constraint);
-                break;
 
             }
         }
@@ -153,9 +150,6 @@ var Body = require('./Body');
                 break;
             case 'composite':
                 Composite.removeComposite(composite, obj, deep);
-                break;
-            case 'mouseConstraint':
-                Composite.removeConstraint(composite, obj.constraint);
                 break;
 
             }

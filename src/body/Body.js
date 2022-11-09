@@ -15,7 +15,6 @@ module.exports = Body;
 var Vertices = require('../geometry/Vertices');
 var Vector = require('../geometry/Vector');
 var Sleeping = require('../core/Sleeping');
-var Render = require('../render/Render');
 var Common = require('../core/Common');
 var Bounds = require('../geometry/Bounds');
 var Axes = require('../geometry/Axes');
@@ -72,19 +71,6 @@ var Axes = require('../geometry/Axes');
             },
             slop: 0.05,
             timeScale: 1,
-            render: {
-                visible: true,
-                opacity: 1,
-                strokeStyle: null,
-                fillStyle: null,
-                lineWidth: null,
-                sprite: {
-                    xScale: 1,
-                    yScale: 1,
-                    xOffset: 0,
-                    yOffset: 0
-                }
-            },
             events: null,
             bounds: null,
             chamfer: null,
@@ -165,16 +151,6 @@ var Axes = require('../geometry/Axes');
             mass: options.mass || body.mass,
             inertia: options.inertia || body.inertia
         });
-
-        // render properties
-        var defaultFillStyle = (body.isStatic ? '#14151f' : Common.choose(['#f19648', '#f5d259', '#f55a3c', '#063e7b', '#ececd1'])),
-            defaultStrokeStyle = body.isStatic ? '#555' : '#ccc',
-            defaultLineWidth = body.isStatic && body.render.fillStyle === null ? 1 : 0;
-        body.render.fillStyle = body.render.fillStyle || defaultFillStyle;
-        body.render.strokeStyle = body.render.strokeStyle || defaultStrokeStyle;
-        body.render.lineWidth = body.render.lineWidth || defaultLineWidth;
-        body.render.sprite.xOffset += -(body.bounds.min.x - body.position.x) / (body.bounds.max.x - body.bounds.min.x);
-        body.render.sprite.yOffset += -(body.bounds.min.y - body.position.y) / (body.bounds.max.y - body.bounds.min.y);
     };
 
     /**
@@ -1109,102 +1085,6 @@ var Axes = require('../geometry/Axes');
      * @property timeScale
      * @type number
      * @default 1
-     */
-
-    /**
-     * An `Object` that defines the rendering properties to be consumed by the module `Matter.Render`.
-     *
-     * @property render
-     * @type object
-     */
-
-    /**
-     * A flag that indicates if the body should be rendered.
-     *
-     * @property render.visible
-     * @type boolean
-     * @default true
-     */
-
-    /**
-     * Sets the opacity to use when rendering.
-     *
-     * @property render.opacity
-     * @type number
-     * @default 1
-    */
-
-    /**
-     * An `Object` that defines the sprite properties to use when rendering, if any.
-     *
-     * @property render.sprite
-     * @type object
-     */
-
-    /**
-     * An `String` that defines the path to the image to use as the sprite texture, if any.
-     *
-     * @property render.sprite.texture
-     * @type string
-     */
-     
-    /**
-     * A `Number` that defines the scaling in the x-axis for the sprite, if any.
-     *
-     * @property render.sprite.xScale
-     * @type number
-     * @default 1
-     */
-
-    /**
-     * A `Number` that defines the scaling in the y-axis for the sprite, if any.
-     *
-     * @property render.sprite.yScale
-     * @type number
-     * @default 1
-     */
-
-    /**
-      * A `Number` that defines the offset in the x-axis for the sprite (normalised by texture width).
-      *
-      * @property render.sprite.xOffset
-      * @type number
-      * @default 0
-      */
-
-    /**
-      * A `Number` that defines the offset in the y-axis for the sprite (normalised by texture height).
-      *
-      * @property render.sprite.yOffset
-      * @type number
-      * @default 0
-      */
-
-    /**
-     * A `Number` that defines the line width to use when rendering the body outline (if a sprite is not defined).
-     * A value of `0` means no outline will be rendered.
-     *
-     * @property render.lineWidth
-     * @type number
-     * @default 0
-     */
-
-    /**
-     * A `String` that defines the fill style to use when rendering the body (if a sprite is not defined).
-     * It is the same as when using a canvas, so it accepts CSS style property values.
-     *
-     * @property render.fillStyle
-     * @type string
-     * @default a random colour
-     */
-
-    /**
-     * A `String` that defines the stroke style to use when rendering the body outline (if a sprite is not defined).
-     * It is the same as when using a canvas, so it accepts CSS style property values.
-     *
-     * @property render.strokeStyle
-     * @type string
-     * @default a random colour
      */
 
     /**
