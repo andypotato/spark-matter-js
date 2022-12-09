@@ -515,9 +515,7 @@ module.exports = Common;
      * @param {string} warning The one-time message to show if the function is called
      */
     Common.deprecated = function(obj, prop, warning) {
-        obj[prop] = Common.chain(function() {
-            Common.warnOnce('🔅 deprecated 🔅', warning);
-        }, obj[prop]);
+
     };
 
     /**
